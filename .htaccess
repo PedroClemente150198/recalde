@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# Evitar redirigir archivos existentes
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Redirigir todas las demás rutas a index.php
+RewriteRule ^(.*)$ index.php?route=$1 [QSA,L]
