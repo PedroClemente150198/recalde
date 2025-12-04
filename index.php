@@ -1,5 +1,9 @@
 <?php 
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once __DIR__. '/src/core/autoload.php';
 
 //echo __DIR__. '/src/models/usuarios.php';
@@ -10,24 +14,122 @@ require_once __DIR__. '/src/core/autoload.php';
 
 use controllers\usuariocontroller;
 use controllers\logincontroller;
+use controllers\dashboardcontroller;
 
 // Por ejemplo, ?route=usuarios
 $route = $_GET['route'] ?? 'home';
 
-echo $route;
+//echo $route.'<br>';
 
 switch($route) {
     case 'login':
         $controller = new LoginController();
         $controller->index();
         break;
+    
+    case 'validar-login':
+        $controller = new LoginController();
+        $controller->authenticate();
+        break;
+    
+    case 'logout':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        session_destroy();
+        header("Location: ?route=login");
+        exit();
+    
     case 'usuarios':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
         $controller = new UsuarioController();
         $controller->index();
         break;
 
+    case 'dashboard':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->index();
+        break;
+    
+    case 'ventas':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->ventas();
+        break;
+    
+    case 'perfil':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->perfil();
+        break;
+    
+    case 'pedidos':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->pedidos();
+        break;
+    
+    case 'historial':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->historial();
+        break;
+    
+    case 'inventario':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->inventario();
+        break;
+    
+    case 'configuracion':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->configuration();
+        break;
+
+    case 'home':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->home();
+        break;
     default:
-        echo "<h1>Bienvenido a RECLALDE</h1>";
+        header("Location: login");
+        exit();
 }
 /*
 use models\usuarios;

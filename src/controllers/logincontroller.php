@@ -12,37 +12,53 @@ class LoginController extends Controller {
 
     public function authenticate(){
         if($_SERVER['REQUEST_METHOD'] === 'POST'){
+            
+            // Iniciar sesión SOLO UNA VEZ en toda la app
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            
             $usuario = trim($_POST['usuario'] ?? '');
             $password = trim($_POST['password'] ?? '');
             
+            #echo "Usuario: $usuario, Password: $password";
+
             $usuariosModel = new Usuarios();
             $user = $usuariosModel->getUserByUsername($usuario);
-            
+
+            /*
+            foreach($user as $key => $value){
+                echo "$key : $value<br>";
+            }
+            */
+
             if(!$user){
                 // Manejar usuario no encontrado
                 $this->render('login/index', ['error' => 'Usuario no encontrado']);
                 return;
-            }
-
+            };
+            
             // verificar la contraseña
-            if(!password_verify($password, $user['contrasena'])) {
+            if(!($password === $user['contrasena'])) {
                 // Manejar contraseña incorrecta
                 $this->render('login/index', ['error' => 'Contraseña incorrecta']);
                 return;
             }
 
+
             $_SESSION['usuario']=[
                 'id' => $user['id'],
                 'usuario' => $user['usuario'],
-                'rol' => $user['rol']
+                'rol' => $user['rol'],
+                'correo' => $user['correo']
             ];
 
             //redirigir a la lista de usuarios
             //header('Location: /dashboard');
             
             // Por simplicidad, asumimos que la autenticación es exitosa
-            $this->redirect('dashboard');
-            exit();
+            $this->redirect('/dashboard');
+            return;
         } else {
             // Si no es una solicitud POST, redirigir al formulario de login
             $this->redirect('login');

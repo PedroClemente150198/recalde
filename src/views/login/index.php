@@ -3,7 +3,7 @@
 <?php if(isset($error)): ?>
     <p style="color:red"><?= $error ?></p>
 <?php endif; ?>
-<form method="post" action="/recalde/">
+<form method="post" action="?route=validar-login">
     <input type="text" name="usuario" placeholder="Usuario">
     <input type="password" name="password" placeholder="Contraseña">
     <button type="submit">Entrar</button>
