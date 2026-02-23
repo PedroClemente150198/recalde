@@ -1,14 +1,10 @@
-<?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href=" <?php BASE_PATH; ?>/public/css/dashboard.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <title>RECALDE</title>
 </head>
 <body>
@@ -44,6 +40,13 @@ if (session_status() === PHP_SESSION_NONE) {
                 <span class="links_name">Perfil</span>
               </a>
               <span class="tooltip">Perfil</span>
+            </li>
+            <li>
+              <a href="/clientes" data-page="clientes">
+                <i class='bx bx-user-plus'></i>
+                <span class="links_name">Clientes</span>
+              </a>
+              <span class="tooltip">Clientes</span>
             </li>
             <li>
               <a href="/pedidos" data-page="pedidos">
@@ -94,11 +97,19 @@ if (session_status() === PHP_SESSION_NONE) {
               <div class="profile-details">
                 <!--<img src="profile.jpg" alt="profileImg">-->
                 <div class="name_job">
-                  <div class="name"> <?php echo $_SESSION['usuario']['usuario']; ?> </div>
-                  <div class="job"> <?php echo $_SESSION['usuario']['correo']; ?> </div>
+                  <div class="name"><?= htmlspecialchars($_SESSION['usuario']['usuario'] ?? '', ENT_QUOTES, 'UTF-8') ?></div>
+                  <div class="job"><?= htmlspecialchars($_SESSION['usuario']['correo'] ?? '', ENT_QUOTES, 'UTF-8') ?></div>
                 </div>
               </div>
-              <i class='bx bx-log-out' id="log_out"></i> <!-- Logout icon -->
+              <!--Botón para cerrar Sesión -->
+              <i
+                class='bx bx-log-out'
+                id="log_out"
+                role="button"
+                tabindex="0"
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              ></i> 
             </li>
           </ul>
         </div>
@@ -106,7 +117,7 @@ if (session_status() === PHP_SESSION_NONE) {
       </header>
       <main>
         <section class="home-section">
-          <div class="text">Sistema</div>
+          <div class="text">SISTEMA DE RECALDE</div>
           <div id="content"></div>  <!-- ← AQUI -->
         </section>
       </main>

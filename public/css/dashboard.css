@@ -16,6 +16,7 @@ body{
   background: #011b2a;
 }
 
+
 /* Sidebar container styling */
 .sidebar {
   position: fixed;
@@ -27,6 +28,8 @@ body{
   padding: 6px 14px;
   z-index: 99; /* Ensures sidebar is on top */
   transition: all 0.5s ease; /* Smooth transition for width change */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Logo details within the sidebar */
@@ -70,24 +73,26 @@ body{
 
 /* Sidebar navigation list styling */
 .sidebar .nav-list {
-  height: calc(100% - 140px); /* Leaves space for logo and profile */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  padding-bottom: 84px; /* Evita que las últimas opciones queden debajo del perfil */
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Scrollbar styles for sidebar */
-.sidebar .scroll {
-  overflow-y: auto; /* Enables vertical scrolling */
-  scrollbar-width: thin;
-}
-.sidebar .scroll::-webkit-scrollbar {
+.sidebar .nav-list::-webkit-scrollbar {
   width: 8px;
   background: #262440; /* Scrollbar background color */
   border-radius: 5px;
 }
-.sidebar .scroll::-webkit-scrollbar-thumb {
+.sidebar .nav-list::-webkit-scrollbar-thumb {
   background: #262440; /* Scrollbar thumb color */
   border-radius: 5px;
 }
-.sidebar .scroll::-webkit-scrollbar-track {
+.sidebar .nav-list::-webkit-scrollbar-track {
   background: #171526; /* Scrollbar track color */
   border-radius: 5px;
 }

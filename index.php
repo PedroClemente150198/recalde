@@ -67,6 +67,36 @@ switch($route) {
         $controller = new DashboardController();
         $controller->ventas();
         break;
+
+    case 'venta-crear':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->ventaCrear();
+        break;
+
+    case 'venta-actualizar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->ventaActualizar();
+        break;
+
+    case 'venta-eliminar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->ventaEliminar();
+        break;
     
     case 'perfil':
         if (session_status() === PHP_SESSION_NONE) session_start();
@@ -76,6 +106,46 @@ switch($route) {
         }
         $controller = new DashboardController();
         $controller->perfil();
+        break;
+
+    case 'clientes':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->clientes();
+        break;
+
+    case 'cliente-crear':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->clienteCrear();
+        break;
+
+    case 'cliente-eliminar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->clienteEliminar();
+        break;
+
+    case 'cliente-actualizar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->clienteActualizar();
         break;
     
     case 'pedidos':
@@ -87,6 +157,36 @@ switch($route) {
         $controller = new DashboardController();
         $controller->pedidos();
         break;
+
+    case 'pedido-detalle':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->pedidoDetalle();
+        break;
+
+    case 'pedido-crear':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->pedidoCrear();
+        break;
+
+    case 'pedido-actualizar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->pedidoActualizar();
+        break;
     
     case 'historial':
         if (session_status() === PHP_SESSION_NONE) session_start();
@@ -96,6 +196,86 @@ switch($route) {
         }
         $controller = new DashboardController();
         $controller->historial();
+        break;
+
+    case 'historial-detalle':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->historialDetalle();
+        break;
+
+    case 'historial-anular':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->historialAnular();
+        break;
+
+    case 'producto-crear':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->productoCrear();
+        break;
+
+    case 'producto-actualizar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->productoActualizar();
+        break;
+
+    case 'producto-eliminar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->productoEliminar();
+        break;
+
+    case 'categoria-crear':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->categoriaCrear();
+        break;
+
+    case 'categoria-actualizar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->categoriaActualizar();
+        break;
+
+    case 'categoria-eliminar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->categoriaEliminar();
         break;
     
     case 'inventario':
@@ -126,6 +306,16 @@ switch($route) {
         }
         $controller = new DashboardController();
         $controller->home();
+        break;
+
+    case 'home-data':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->homeData();
         break;
     default:
         header("Location: login");

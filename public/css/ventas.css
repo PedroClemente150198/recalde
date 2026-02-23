@@ -1,0 +1,282 @@
+/* ---------- CONTENEDOR ---------- */
+.ventas-container {
+    width: 100%;
+    padding: 20px 30px;
+}
+
+.ventas-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+/* ---------- TITULO ---------- */
+h2 {
+    text-align: left;
+    margin-bottom: 25px;
+    font-weight: 700;
+    font-size: 28px;
+    color: #00eaff;
+    text-shadow: 0 0 0.5px #00eaff;
+}
+
+/* ---------- TABLA ---------- */
+.ventas-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(5, 10, 25, 0.8);
+    color: #e0f7fa;
+    border-radius: 14px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.15),
+                0 0 40px rgba(0, 255, 255, 0.07) inset;
+}
+
+.ventas-table thead {
+    background: linear-gradient(90deg, #02101f, #042a3c);
+    border-bottom: 2px solid #00eaff;
+    text-align: center;
+}
+
+.ventas-table th {
+    padding: 14px 12px;
+    font-size: 14px;
+    text-align: center;
+    text-transform: uppercase;
+    color: #00eaff;
+    letter-spacing: 1px;
+}
+
+.ventas-table td {
+    padding: 14px 12px;
+    font-size: 14px;
+    text-align: center;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+}
+
+.ventas-table tbody tr:nth-child(even) {
+    background: rgba(20, 40, 70, 0.4);
+}
+
+.ventas-table tbody tr:hover {
+    background: rgba(0, 255, 255, 0.12);
+    box-shadow: inset 0 0 12px rgba(0, 255, 255, 0.35),
+                0 0 8px rgba(0, 255, 255, 0.35);
+    transition: 0.25s ease-in-out;
+}
+
+/* ---------- ESTADOS ---------- */
+.status-pendiente,
+.status-procesando,
+.status-listo,
+.status-entregado,
+.status-cancelado,
+.status-desconocido {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    display: inline-block;
+    font-size: 12px;
+    text-transform: capitalize;
+}
+
+.status-pendiente {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: #ffc107;
+    color: #ffc107;
+}
+
+.status-procesando {
+    background: rgba(0, 208, 255, 0.14);
+    border-color: #00d0ff;
+    color: #00d0ff;
+}
+
+.status-listo {
+    background: rgba(40, 167, 69, 0.18);
+    border-color: #28ffbd;
+    color: #28ffbd;
+}
+
+.status-entregado {
+    background: rgba(121, 255, 119, 0.15);
+    border-color: #79ff77;
+    color: #79ff77;
+}
+
+.status-cancelado {
+    background: rgba(220, 53, 69, 0.15);
+    border-color: #ff5e5e;
+    color: #ff5e5e;
+}
+
+.status-desconocido {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: #e3eff7;
+}
+
+/* ---------- BOTONES ---------- */
+.btn {
+    padding: 7px 14px;
+    font-size: 14px;
+    border-radius: 8px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: 0.25s ease;
+}
+
+.btn.nuevo {
+    background: #28ffbd;
+    color: #052119;
+}
+
+.btn.editar {
+    background: rgba(0, 200, 255, 0.15);
+    border: 1px solid #00eaff;
+    color: #00eaff;
+}
+
+.btn.editar:hover {
+    background: #00eaff;
+    color: #00131a;
+}
+
+.btn.eliminar {
+    background: rgba(255, 80, 80, 0.15);
+    border: 1px solid #ff5e5e;
+    color: #ff5e5e;
+}
+
+.btn.eliminar:hover {
+    background: #ff5e5e;
+    color: #00131a;
+}
+
+.btn.cerrar {
+    background: #ff5e5e;
+    color: #fff;
+    min-width: 36px;
+    font-weight: 700;
+}
+
+.btn.cancelar {
+    background: #1f3a4a;
+    color: #d9f9ff;
+}
+
+.btn.guardar {
+    background: #00d0ff;
+    color: #001019;
+}
+
+td.acciones {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* ---------- MODALES ---------- */
+.ventas-modal[hidden] {
+    display: none !important;
+}
+
+.ventas-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: grid;
+    place-items: center;
+}
+
+.ventas-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(1, 10, 20, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+.ventas-modal-content {
+    position: relative;
+    width: min(700px, 92vw);
+    max-height: 88vh;
+    overflow: auto;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 255, 255, 0.35);
+    background: rgba(8, 14, 30, 0.96);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.45);
+    color: #e0f7fa;
+    padding: 18px;
+}
+
+.ventas-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.ventas-modal-header h3 {
+    margin: 0;
+    color: #00eaff;
+}
+
+.venta-form {
+    display: grid;
+    gap: 10px;
+}
+
+.venta-form label {
+    font-weight: 600;
+    color: #8ef8ff;
+}
+
+.venta-form input,
+.venta-form select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 255, 255, 0.35);
+    background: rgba(4, 20, 34, 0.9);
+    color: #e0f7fa;
+}
+
+.venta-feedback {
+    margin: 2px 0 0;
+    font-size: 14px;
+}
+
+.venta-feedback.error {
+    color: #ff7d7d;
+}
+
+.venta-feedback.success {
+    color: #6af7c2;
+}
+
+.venta-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 900px) {
+    .ventas-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 768px) {
+    .ventas-table th,
+    .ventas-table td {
+        font-size: 13px;
+        padding: 10px;
+    }
+}

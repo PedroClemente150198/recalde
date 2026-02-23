@@ -1,0 +1,314 @@
+/* ---------- CONTENEDOR GENERAL ---------- */
+.inventario-container {
+    width: 100%;
+    padding: 20px 30px;
+    animation: floatContainer 3s ease-in-out infinite;
+}
+
+.inventario-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.inventario-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.inventario-subtitle {
+    margin: 14px 0 10px;
+    font-size: 20px;
+    color: #8ef8ff;
+}
+
+.categorias-section {
+    margin-bottom: 20px;
+}
+
+h1 {
+    text-align: left;
+    font-size: 32px;
+    font-weight: 700;
+    color: #00eaff;
+    margin-bottom: 25px;
+    /*text-shadow: 0 0 10px #00eaff;*/
+}
+
+/* ---------- TABLA ---------- */
+.tabla-inventario,
+.tabla-categorias {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(5, 10, 25, 0.85);
+    color: #e0f7fa;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(0,255,255,0.3);
+
+    box-shadow: 0 0 20px rgba(0,255,255,0.15),
+                inset 0 0 40px rgba(0,255,255,0.07);
+
+    animation: floatTable 3s ease-in-out infinite;
+}
+
+/* ENCABEZADO */
+.tabla-inventario thead,
+.tabla-categorias thead {
+    background: linear-gradient(90deg, #03101f, #04273a);
+}
+
+.tabla-inventario th,
+.tabla-categorias th {
+    padding: 14px 12px;
+    font-size: 15px;
+    text-transform: uppercase;
+    color: #00eaff;
+    letter-spacing: 1px;
+    /*text-shadow: 0 0 4px #00eaff;*/
+    text-align: center;
+}
+
+/* ---------- CELDAS ---------- */
+.tabla-inventario td,
+.tabla-categorias td {
+    padding: 14px 12px;
+    font-size: 15px;
+    text-align: center;
+    border-bottom: 1px solid rgba(0,255,255,0.1);
+}
+
+/* Alinear texto de productos */
+td.left {
+    text-align: left;
+}
+
+/* ---------- FILAS ---------- */
+.tabla-inventario tbody tr:nth-child(even),
+.tabla-categorias tbody tr:nth-child(even) {
+    background: rgba(20, 40, 70, 0.35);
+}
+
+/* Hover neón */
+.tabla-inventario tbody tr:hover,
+.tabla-categorias tbody tr:hover {
+    cursor: pointer;
+    background: rgba(0,255,255,0.12);
+    box-shadow: inset 0 0 12px rgba(0,255,255,0.35);
+    transition: 0.25s ease-in-out;
+}
+
+/* ---------- STOCK BAJO ---------- */
+.low-stock {
+    background: rgba(255, 0, 0, 0.15) !important;
+}
+
+.low-stock:hover {
+    background: rgba(255, 0, 0, 0.22) !important;
+}
+
+/* ---------- BADGES ---------- */
+.badge {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: bold;
+    text-shadow: 0px 0px 6px currentColor;
+}
+
+.badge.activo {
+    color: #28ffbd;
+    border: 1px solid #28ffbd;
+    background: #28a74522;
+}
+
+.badge.inactivo {
+    color: #ff5e5e;
+    border: 1px solid #ff5e5e;
+    background: #dc354522;
+}
+
+/* ---------- BOTONES ---------- */
+.btn {
+    padding: 7px 14px;
+    font-size: 14px;
+    border-radius: 8px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: 0.25s ease;
+}
+
+.btn.editar {
+    background: rgba(0, 200, 255, 0.15);
+    border: 1px solid #00eaff;
+    color: #00eaff;
+}
+
+.btn.editar:hover {
+    background: #00eaff;
+    color: #00131a;
+}
+
+.btn.eliminar {
+    background: rgba(255, 80, 80, 0.15);
+    border: 1px solid #ff5e5e;
+    color: #ff5e5e;
+}
+
+.btn.eliminar:hover {
+    background: #ff5e5e;
+    color: #00131a;
+}
+
+.btn.nuevo {
+    background: #28ffbd;
+    color: #052119;
+}
+
+.btn.categoria {
+    background: rgba(0, 208, 255, 0.18);
+    border: 1px solid #00d0ff;
+    color: #a9f7ff;
+}
+
+.btn.categoria:hover {
+    background: #00d0ff;
+    color: #04131a;
+}
+
+.btn.cerrar {
+    background: #ff5e5e;
+    color: #fff;
+    min-width: 36px;
+    font-weight: 700;
+}
+
+.btn.cancelar {
+    background: #1f3a4a;
+    color: #d9f9ff;
+}
+
+.btn.guardar {
+    background: #00d0ff;
+    color: #001019;
+}
+
+/* Alineación de acciones */
+td.acciones {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+/* ---------- ANIMACIONES ---------- */
+@keyframes floatTable {
+    0%   { transform: translateY(0px); }
+    50%  { transform: translateY(-4px); }
+    100% { transform: translateY(0px); }
+}
+
+@keyframes floatContainer {
+    0%   { opacity: 0.96; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.96; }
+}
+
+/* ---------- MODALES PRODUCTO ---------- */
+.inventario-modal[hidden] {
+    display: none !important;
+}
+
+.inventario-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: grid;
+    place-items: center;
+}
+
+.inventario-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(1, 10, 20, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+.inventario-modal-content {
+    position: relative;
+    width: min(860px, 92vw);
+    max-height: 88vh;
+    overflow: auto;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 255, 255, 0.35);
+    background: rgba(8, 14, 30, 0.96);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.45);
+    color: #e0f7fa;
+    padding: 18px;
+}
+
+.inventario-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.inventario-modal-header h3 {
+    margin: 0;
+    color: #00eaff;
+}
+
+.producto-form {
+    display: grid;
+    gap: 10px;
+}
+
+.producto-form label {
+    font-weight: 600;
+    color: #8ef8ff;
+}
+
+.producto-form input,
+.producto-form select,
+.producto-form textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 255, 255, 0.35);
+    background: rgba(4, 20, 34, 0.9);
+    color: #e0f7fa;
+}
+
+.producto-feedback {
+    margin: 2px 0 0;
+    font-size: 14px;
+}
+
+.producto-feedback.error {
+    color: #ff7d7d;
+}
+
+.producto-feedback.success {
+    color: #6af7c2;
+}
+
+.producto-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .inventario-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .inventario-header-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+}

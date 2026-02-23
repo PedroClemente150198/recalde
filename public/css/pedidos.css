@@ -1,0 +1,373 @@
+/* ---------- CONTENEDOR ---------- */
+.pedidos-container {
+    width: 95%;
+    margin: auto;
+    padding-top: 20px;
+}
+
+.pedidos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+/* ---------- TÍTULO ---------- */
+h2 {
+    margin-bottom: 25px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #00eaff;
+    text-shadow: 0 0 6px #00eaff;
+}
+
+/* ---------- TABLA ---------- */
+.pedidos-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(5, 10, 25, 0.8);
+    color: #e0f7fa;
+    border-radius: 14px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+
+    border: 1px solid rgba(0,255,255,0.3);
+    box-shadow: 0 0 20px rgba(0,255,255,0.15),
+                0 0 40px rgba(0,255,255,0.07) inset;
+
+    animation: floatSmooth 4s ease-in-out infinite;
+}
+
+/* ---------- ENCABEZADO ---------- */
+.pedidos-table thead {
+    background: linear-gradient(90deg, #02101f, #042a3c);
+    border-bottom: 2px solid #00eaff;
+}
+
+.pedidos-table th {
+    padding: 14px 12px;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 15px;
+    color: #00eaff;
+    letter-spacing: 1px;
+}
+
+/* ---------- CELDAS ---------- */
+.pedidos-table td {
+    padding: 14px 12px;
+    text-align: center;
+    font-size: 15px;
+    border-bottom: 1px solid rgba(0,255,255,0.1);
+}
+
+/* ---------- FILAS ---------- */
+.pedidos-table tbody tr:nth-child(even) {
+    background: rgba(20, 40, 70, 0.25);
+}
+
+.pedidos-table tbody tr:hover {
+    background: rgba(0, 255, 255, 0.12);
+    box-shadow: inset 0 0 12px rgba(0,255,255,0.35),
+                0 0 8px rgba(0,255,255,0.35);
+    transition: 0.25s ease;
+}
+
+/* ---------- ESTADOS ---------- */
+.status-procesando {
+    background: rgba(255,193,7,0.15);
+    border: 1px solid #ffc107;
+    padding: 6px 10px;
+    color: #ffc107;
+    border-radius: 8px;
+    animation: neonBlink 2s infinite;
+}
+
+.status-pendiente {
+    background: rgba(94, 114, 228, 0.15);
+    border: 1px solid #5e72e4;
+    padding: 6px 10px;
+    color: #8fa2ff;
+    border-radius: 8px;
+    animation: neonBlink 2.1s infinite;
+}
+
+.status-listo {
+    background: rgba(0, 208, 255, 0.15);
+    border: 1px solid #00d0ff;
+    padding: 6px 10px;
+    color: #79ebff;
+    border-radius: 8px;
+    animation: neonBlink 2.2s infinite;
+}
+
+.status-entregado,
+.status-finalizado {
+    background: rgba(40,167,69,0.15);
+    border: 1px solid #28ffbd;
+    padding: 6px 10px;
+    color: #28ffbd;
+    border-radius: 8px;
+    animation: neonBlink 2.3s infinite;
+}
+
+.status-cancelado {
+    background: rgba(220,53,69,0.15);
+    border: 1px solid #ff5e5e;
+    padding: 6px 10px;
+    color: #ff5e5e;
+    border-radius: 8px;
+    animation: neonBlink 1.8s infinite;
+}
+
+/* ---------- BOTONES ---------- */
+.btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.2s;
+}
+
+.btn.ver {
+    background: #0099ff;
+    color: white;
+}
+
+.btn.editar {
+    background: #00d0ff;
+    color: #001019;
+}
+
+.btn.nuevo {
+    background: #28ffbd;
+    color: #052119;
+}
+
+.btn.agregar {
+    background: #2b73ff;
+    color: #ffffff;
+    width: fit-content;
+}
+
+.btn.quitar {
+    background: #7a2133;
+    color: #ffd4dc;
+}
+
+.btn:hover {
+    transform: scale(1.05);
+}
+
+/* ---------- ANIMACIONES ---------- */
+@keyframes floatSmooth {
+    0%   { transform: translateY(0px); }
+    50%  { transform: translateY(-3px); }
+    100% { transform: translateY(0px); }
+}
+
+@keyframes neonBlink {
+    0%,100% { opacity: 1; }
+    50%     { opacity: 0.55; }
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 768px) {
+    .pedidos-table th, .pedidos-table td {
+        font-size: 13px;
+        padding: 10px;
+    }
+}
+
+/* ---------- MODAL DETALLE ---------- */
+.pedido-modal[hidden] {
+    display: none !important;
+}
+
+.pedido-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+}
+
+.pedido-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(1, 10, 20, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+.pedido-modal-content {
+    position: relative;
+    width: min(900px, 92vw);
+    max-height: 88vh;
+    overflow: auto;
+    border-radius: 14px;
+    border: 1px solid rgba(0,255,255,0.35);
+    background: rgba(8, 14, 30, 0.96);
+    box-shadow: 0 10px 35px rgba(0,0,0,0.45);
+    color: #e0f7fa;
+    padding: 18px;
+}
+
+.pedido-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.pedido-modal-header h3 {
+    margin: 0;
+    color: #00eaff;
+}
+
+.pedido-modal-body p {
+    margin: 6px 0;
+}
+
+.pedido-modal-body h4 {
+    margin: 16px 0 10px;
+    color: #8ef8ff;
+}
+
+.pedido-detalle-table {
+    animation: none;
+}
+
+.btn.cerrar {
+    background: #ff5e5e;
+    color: #fff;
+    min-width: 36px;
+    font-weight: 700;
+}
+
+.pedido-edit-form {
+    display: grid;
+    gap: 10px;
+}
+
+.pedido-edit-form label {
+    font-weight: 600;
+    color: #8ef8ff;
+}
+
+.pedido-edit-form select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,255,255,0.35);
+    background: rgba(4, 20, 34, 0.9);
+    color: #e0f7fa;
+}
+
+.pedido-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.btn.cancelar {
+    background: #1f3a4a;
+    color: #d9f9ff;
+}
+
+.btn.guardar {
+    background: #00d0ff;
+    color: #001019;
+}
+
+.pedido-edit-feedback {
+    margin: 0;
+    font-size: 14px;
+}
+
+.pedido-edit-feedback.error {
+    color: #ff7d7d;
+}
+
+.pedido-edit-feedback.success {
+    color: #6af7c2;
+}
+
+.status-desconocido {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.35);
+    padding: 6px 10px;
+    color: #d9d9d9;
+    border-radius: 8px;
+}
+
+.pedido-create-form {
+    display: grid;
+    gap: 10px;
+}
+
+.pedido-create-form label {
+    font-weight: 600;
+    color: #8ef8ff;
+}
+
+.pedido-create-form select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,255,255,0.35);
+    background: rgba(4, 20, 34, 0.9);
+    color: #e0f7fa;
+}
+
+.pedido-items {
+    display: grid;
+    gap: 8px;
+}
+
+.pedido-item-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) 120px 90px;
+    gap: 8px;
+    align-items: center;
+}
+
+.pedido-item-row .pedido-item-cantidad {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,255,255,0.35);
+    background: rgba(4, 20, 34, 0.9);
+    color: #e0f7fa;
+}
+
+.pedido-create-total {
+    margin: 2px 0 0;
+    color: #d9f9ff;
+}
+
+.pedido-create-feedback {
+    margin: 0;
+    font-size: 14px;
+}
+
+.pedido-create-feedback.error {
+    color: #ff7d7d;
+}
+
+.pedido-create-feedback.success {
+    color: #6af7c2;
+}
+
+@media (max-width: 768px) {
+    .pedidos-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .pedido-item-row {
+        grid-template-columns: 1fr;
+    }
+}

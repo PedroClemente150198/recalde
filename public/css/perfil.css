@@ -1,0 +1,75 @@
+/* ----------- CONTENEDOR DEL PERFIL ----------- */
+.perfil-container {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 25px 30px;
+
+    background: rgba(5, 10, 25, 0.85);
+    color: #e0f7fa;
+    font-family: 'Arial', sans-serif;
+
+    border-radius: 18px;
+    border: 1px solid rgba(0,255,255,0.25);
+
+    box-shadow:
+        0 0 20px rgba(0,255,255,0.20),
+        0 0 40px rgba(0,255,255,0.10) inset;
+
+    backdrop-filter: blur(10px);
+
+    /*animation: floatCard 4s ease-in-out infinite;*/
+}
+
+/* ----------- TÍTULO ----------- */
+.perfil-container h1 {
+    font-size: 28px;
+    margin-bottom: 25px;
+    text-align: left;
+
+    color: #00eaff;
+    /*text-shadow:
+        0 0 6px #00eaff,
+        0 0 12px #00ffff;*/
+}
+
+/* ----------- TEXTO ----------- */
+.perfil-container p {
+    font-size: 17px;
+    margin: 14px 0;
+    color: #c8f9ff;
+
+    border-left: 3px solid #00eaff90;
+    padding-left: 10px;
+
+    transition: 0.25s ease;
+}
+
+.perfil-container p:hover {
+    cursor: pointer;
+    color: #ffffff;
+    text-shadow: 0 0 10px #5cf1ff71;
+    transform: translateX(3px);
+}
+
+/* Etiquetas */
+.perfil-container strong {
+    color: #00eaff;
+    /*text-shadow: 0 0 4px #00eaff;*/
+}
+
+/* ----------- ANIMACIÓN FLOTANTE SUAVE ----------- */
+@keyframes floatCard {
+    0%   { transform: translateY(0px); }
+    50%  { transform: translateY(-4px); }
+    100% { transform: translateY(0px); }
+}
+
+/* ----------- RESPONSIVE ----------- */
+@media (max-width: 600px) {
+    .perfil-container {
+        padding: 20px;
+    }
+    .perfil-container h1 {
+        font-size: 24px;
+    }
+}

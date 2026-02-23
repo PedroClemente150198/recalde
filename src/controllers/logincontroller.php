@@ -46,12 +46,19 @@ class LoginController extends Controller {
             }
 
 
-            $_SESSION['usuario']=[
+            /*$_SESSION['usuario']=[
                 'id' => $user['id'],
                 'usuario' => $user['usuario'],
                 'rol' => $user['rol'],
                 'correo' => $user['correo']
-            ];
+            ];*/
+
+            // ELIMINAR la contraseña antes de poner en sesión
+            unset($user['contrasena']);
+
+            // GUARDAR *TODO* EL REGISTRO en sesión
+            $_SESSION['usuario'] = $user;
+
 
             //redirigir a la lista de usuarios
             //header('Location: /dashboard');

@@ -1,0 +1,221 @@
+.clientes-container {
+    width: 95%;
+    margin: auto;
+    padding-top: 20px;
+}
+
+.clientes-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+h2 {
+    margin-bottom: 20px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #00eaff;
+    text-shadow: 0 0 6px #00eaff;
+}
+
+.clientes-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(5, 10, 25, 0.8);
+    color: #e0f7fa;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.15), 0 0 40px rgba(0, 255, 255, 0.07) inset;
+}
+
+.clientes-table thead {
+    background: linear-gradient(90deg, #02101f, #042a3c);
+    border-bottom: 2px solid #00eaff;
+}
+
+.clientes-table th {
+    padding: 14px 12px;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 14px;
+    color: #00eaff;
+    letter-spacing: 0.8px;
+}
+
+.clientes-table td {
+    padding: 12px 10px;
+    text-align: center;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+}
+
+.clientes-table tbody tr:nth-child(even) {
+    background: rgba(20, 40, 70, 0.25);
+}
+
+.clientes-table tbody tr:hover {
+    background: rgba(0, 255, 255, 0.12);
+    box-shadow: inset 0 0 12px rgba(0, 255, 255, 0.35), 0 0 8px rgba(0, 255, 255, 0.35);
+    transition: 0.25s ease;
+}
+
+.clientes-empty {
+    text-align: center;
+}
+
+.btn {
+    padding: 7px 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: 0.2s;
+}
+
+.btn.nuevo {
+    background: #28ffbd;
+    color: #052119;
+}
+
+.btn.editar {
+    background: #00d0ff;
+    color: #001019;
+}
+
+.btn.eliminar {
+    background: #7a2133;
+    color: #ffd4dc;
+}
+
+.clientes-table td .btn + .btn {
+    margin-left: 6px;
+}
+
+.btn.cancelar {
+    background: #1f3a4a;
+    color: #d9f9ff;
+}
+
+.btn.guardar {
+    background: #00d0ff;
+    color: #001019;
+}
+
+.btn.cerrar {
+    background: #ff5e5e;
+    color: #fff;
+    min-width: 36px;
+    font-weight: 700;
+}
+
+.btn:hover {
+    transform: scale(1.03);
+}
+
+.cliente-modal[hidden] {
+    display: none !important;
+}
+
+.cliente-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: grid;
+    place-items: center;
+}
+
+.cliente-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(1, 10, 20, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+.cliente-modal-content {
+    position: relative;
+    width: min(860px, 92vw);
+    max-height: 88vh;
+    overflow: auto;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 255, 255, 0.35);
+    background: rgba(8, 14, 30, 0.96);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.45);
+    color: #e0f7fa;
+    padding: 18px;
+}
+
+.cliente-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+
+.cliente-modal-header h3 {
+    margin: 0;
+    color: #00eaff;
+}
+
+.cliente-create-form {
+    display: grid;
+    gap: 10px;
+}
+
+.cliente-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cliente-field {
+    display: grid;
+    gap: 6px;
+}
+
+.cliente-field label {
+    font-weight: 600;
+    color: #8ef8ff;
+}
+
+.cliente-field input,
+.cliente-field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 255, 255, 0.35);
+    background: rgba(4, 20, 34, 0.9);
+    color: #e0f7fa;
+}
+
+.cliente-create-feedback {
+    margin: 2px 0 0;
+    font-size: 14px;
+}
+
+.cliente-create-feedback.error {
+    color: #ff7d7d;
+}
+
+.cliente-create-feedback.success {
+    color: #6af7c2;
+}
+
+.cliente-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .clientes-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .cliente-grid {
+        grid-template-columns: 1fr;
+    }
+}

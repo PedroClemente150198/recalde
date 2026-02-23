@@ -1,0 +1,270 @@
+body {
+    font-family: 'Segoe UI', sans-serif;
+    color: #e6edf3;
+    margin: 0;
+    padding: 0;
+}
+
+.historial-container {
+    width: 94%;
+    margin: 28px auto;
+    background: rgba(13, 17, 23, 0.72);
+    padding: 22px;
+    border-radius: 12px;
+    box-shadow: 0 0 22px rgba(0, 190, 255, 0.22);
+    backdrop-filter: blur(6px);
+}
+
+h1 {
+    text-align: center;
+    color: #00eaff;
+    text-shadow: 0 0 10px #00eaff;
+    margin: 0 0 10px;
+    font-size: 2rem;
+}
+
+.historial-subtitle {
+    text-align: center;
+    color: #9fd2ea;
+    font-size: 0.95rem;
+    margin: 0 0 18px;
+}
+
+.tabla-wrapper {
+    overflow-x: auto;
+}
+
+.tabla-historial,
+.tabla-detalle-historial {
+    width: 100%;
+    border-collapse: collapse;
+    background: #161b22;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 0 15px rgba(0, 150, 255, 0.15);
+}
+
+.tabla-historial th,
+.tabla-detalle-historial th {
+    color: #dff7ff;
+    padding: 12px;
+    font-size: 0.86rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    white-space: nowrap;
+}
+
+.tabla-historial td,
+.tabla-detalle-historial td {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    vertical-align: top;
+}
+
+.tabla-historial tr:hover,
+.tabla-detalle-historial tr:hover {
+    background: rgba(56, 139, 253, 0.15);
+    transition: 0.2s;
+}
+
+.historial-cell-title {
+    font-weight: 600;
+    color: #f1f7ff;
+}
+
+.historial-subdata {
+    color: #8fb9ce;
+    font-size: 0.82rem;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    white-space: nowrap;
+}
+
+.badge {
+    padding: 6px 10px;
+    border-radius: 7px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 0 8px rgba(88, 166, 255, 0.4);
+}
+
+.badge.registrado {
+    background: #1f6feb;
+}
+
+.badge.entregado {
+    background: #238636;
+}
+
+.badge.anulado {
+    background: #da3633;
+}
+
+.btn {
+    padding: 7px 12px;
+    border: none;
+    cursor: pointer;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    transition: 0.2s ease;
+    color: white;
+}
+
+.btn.ver {
+    background: #1f6feb;
+}
+
+.btn.imprimir {
+    background: #0e7490;
+}
+
+.btn.anular {
+    background: #da3633;
+}
+
+.btn:hover {
+    transform: scale(1.04);
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
+}
+
+.historial-modal[hidden] {
+    display: none !important;
+}
+
+.historial-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+}
+
+.historial-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(1, 10, 20, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+.historial-modal-content {
+    position: relative;
+    width: min(980px, 94vw);
+    max-height: 90vh;
+    overflow: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 234, 255, 0.35);
+    background: rgba(12, 18, 30, 0.97);
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.45);
+    color: #e6edf3;
+    padding: 18px;
+}
+
+.historial-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.historial-modal-header h3 {
+    margin: 0;
+    color: #00eaff;
+}
+
+.historial-modal-body p {
+    margin: 6px 0;
+}
+
+.historial-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    gap: 4px 16px;
+    margin-bottom: 14px;
+}
+
+.historial-resumen-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(140px, 1fr));
+    gap: 10px;
+    margin: 8px 0 16px;
+}
+
+.resumen-card {
+    background: rgba(17, 28, 44, 0.85);
+    border: 1px solid rgba(0, 190, 255, 0.2);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.resumen-card small {
+    display: block;
+    color: #9ec6dc;
+    font-size: 0.78rem;
+    margin-bottom: 4px;
+}
+
+.resumen-card strong {
+    color: #f3fcff;
+    font-size: 1.02rem;
+}
+
+.historial-detalle-items h4 {
+    margin: 0 0 10px;
+    color: #b5e9ff;
+}
+
+.tabla-detalle-historial td {
+    font-size: 0.9rem;
+}
+
+.btn.cerrar {
+    background: #da3633;
+    color: #fff;
+    min-width: 36px;
+    font-weight: 700;
+}
+
+.historial-feedback {
+    margin-top: 10px;
+    font-size: 0.92rem;
+}
+
+.historial-feedback.error {
+    color: #ff7d7d;
+}
+
+.historial-feedback.success {
+    color: #77f0b8;
+}
+
+@media (max-width: 1200px) {
+    .historial-detail-grid {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+    }
+
+    .historial-resumen-grid {
+        grid-template-columns: repeat(3, minmax(150px, 1fr));
+    }
+}
+
+@media (max-width: 780px) {
+    .historial-container {
+        width: 96%;
+        padding: 14px;
+    }
+
+    .historial-detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .historial-resumen-grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
+}
