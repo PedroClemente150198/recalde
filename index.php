@@ -108,6 +108,36 @@ switch($route) {
         $controller->perfil();
         break;
 
+    case 'perfil-crear':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->perfilCrear();
+        break;
+
+    case 'perfil-actualizar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->perfilActualizar();
+        break;
+
+    case 'perfil-eliminar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->perfilEliminar();
+        break;
+
     case 'clientes':
         if (session_status() === PHP_SESSION_NONE) session_start();
         if (!isset($_SESSION['usuario'])) {
@@ -296,6 +326,36 @@ switch($route) {
         }
         $controller = new DashboardController();
         $controller->configuration();
+        break;
+
+    case 'developer':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->developer();
+        break;
+
+    case 'developer-data':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->developerData();
+        break;
+
+    case 'developer-action':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->developerAction();
         break;
 
     case 'home':

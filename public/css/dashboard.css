@@ -352,3 +352,64 @@ main{
   font-weight: 500;
   /*margin: 18px;*/
 }
+
+/* Tabla paginada */
+.table-pagination {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.table-pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.table-pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.table-pagination-btn {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid #0f4a64;
+  border-radius: 8px;
+  background: #032538;
+  color: #d7efff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 10px;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.table-pagination-btn:hover:not(:disabled) {
+  background: #0a3d57;
+  border-color: #1888b5;
+  color: #ffffff;
+}
+
+.table-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.table-pagination-btn.is-active {
+  background: #12a4dc;
+  border-color: #12a4dc;
+  color: #031d2b;
+}
+
+.table-pagination-info {
+  font-size: 13px;
+  color: #8fc5df;
+  margin: 0;
+}

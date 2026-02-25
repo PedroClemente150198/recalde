@@ -159,6 +159,42 @@
     font-size: 0.84rem;
 }
 
+.panel-head-inline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.home-period-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.78rem;
+    color: #9ec9e1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.home-period-filter select {
+    min-width: 130px;
+    border: 1px solid rgba(123, 194, 238, 0.35);
+    border-radius: 8px;
+    background: rgba(5, 20, 33, 0.88);
+    color: #eaf7ff;
+    padding: 7px 10px;
+    font-size: 0.88rem;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.home-period-filter select:focus {
+    outline: none;
+    border-color: var(--home-accent);
+    box-shadow: 0 0 0 2px rgba(53, 199, 255, 0.2);
+}
+
 .chart-wrap {
     margin-top: 12px;
     height: 340px;

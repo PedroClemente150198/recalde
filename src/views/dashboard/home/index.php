@@ -8,11 +8,35 @@ $homeData = [
     'ingresosTotales' => (float) ($ingresosTotales ?? 0),
     'topProductos' => $topProductos,
     'ultimasVentas' => $ultimasVentas,
-    'labelsMes' => $labelsMes ?? [],
-    'datosVentasMes' => $datosVentasMes ?? [],
+    'periodoIngresos' => $periodoIngresos ?? 'mes',
+    'labelsIngresos' => $labelsIngresos ?? ($labelsMes ?? []),
+    'datosIngresos' => $datosIngresos ?? ($datosVentasMes ?? []),
+    // Compatibilidad
+    'labelsMes' => $labelsMes ?? ($labelsIngresos ?? []),
+    'datosVentasMes' => $datosVentasMes ?? ($datosIngresos ?? []),
     'pedidosEstados' => $pedidosEstados ?? [],
     'ultimaActualizacion' => $ultimaActualizacion ?? date('Y-m-d H:i:s')
 ];
+
+$periodoIngresosActual = strtolower((string) ($homeData['periodoIngresos'] ?? 'mes'));
+if (!in_array($periodoIngresosActual, ['dia', 'semana', 'mes'], true)) {
+    $periodoIngresosActual = 'mes';
+}
+
+$ingresosTitulos = [
+    'dia' => 'Ingresos por Día',
+    'semana' => 'Ingresos por Semana',
+    'mes' => 'Ingresos por Mes',
+];
+
+$ingresosDescripciones = [
+    'dia' => 'Detalle diario de ingresos registrados.',
+    'semana' => 'Comparativa semanal de ingresos.',
+    'mes' => 'Tendencia mensual del rendimiento comercial acumulado.',
+];
+
+$ingresosTitulo = $ingresosTitulos[$periodoIngresosActual];
+$ingresosDescripcion = $ingresosDescripciones[$periodoIngresosActual];
 
 $topProductoPrincipal = !empty($topProductos[0]['nombre_producto'])
     ? (string) $topProductos[0]['nombre_producto']
@@ -93,9 +117,20 @@ $activos = $pendiente + $procesando + $listo;
 
     <section class="analytics-grid">
         <article class="home-panel panel-wide">
-            <div class="panel-head">
-                <h3>Ingresos por Mes</h3>
-                <p>Tendencia del rendimiento comercial acumulado.</p>
+            <div class="panel-head panel-head-inline">
+                <div>
+                    <h3 id="home-ingresos-title"><?= htmlspecialchars($ingresosTitulo) ?></h3>
+                    <p id="home-ingresos-subtitle"><?= htmlspecialchars($ingresosDescripcion) ?></p>
+                </div>
+
+                <label class="home-period-filter" for="home-ingresos-periodo">
+                    <span>Periodo</span>
+                    <select id="home-ingresos-periodo" name="periodo_ingresos">
+                        <option value="dia" <?= $periodoIngresosActual === 'dia' ? 'selected' : '' ?>>Día</option>
+                        <option value="semana" <?= $periodoIngresosActual === 'semana' ? 'selected' : '' ?>>Semana</option>
+                        <option value="mes" <?= $periodoIngresosActual === 'mes' ? 'selected' : '' ?>>Mes</option>
+                    </select>
+                </label>
             </div>
             <div class="chart-wrap">
                 <canvas id="chartVentasMes"></canvas>

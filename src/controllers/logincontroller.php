@@ -37,6 +37,11 @@ class LoginController extends Controller {
                 $this->render('login/index', ['error' => 'Usuario no encontrado']);
                 return;
             };
+
+            if (strtolower((string) ($user['estado'] ?? '')) !== 'activo') {
+                $this->render('login/index', ['error' => 'Tu usuario está inactivo. Contacta al administrador.']);
+                return;
+            }
             
             // verificar la contraseña
             if(!($password === $user['contrasena'])) {

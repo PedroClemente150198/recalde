@@ -17,7 +17,8 @@ class DashboardController extends Controller{
     }
 
     public function home() {
-        $this->render('dashboard/home/index', $this->buildHomePayload());
+        $periodo = trim((string) ($_GET['periodo'] ?? 'mes'));
+        $this->render('dashboard/home/index', $this->buildHomePayload($periodo));
     }
 
     public function homeData() {
@@ -32,23 +33,126 @@ class DashboardController extends Controller{
             return;
         }
 
+        $periodo = trim((string) ($_GET['periodo'] ?? 'mes'));
+
         echo json_encode([
             'ok' => true,
-            'data' => $this->buildHomePayload()
+            'data' => $this->buildHomePayload($periodo)
         ], JSON_UNESCAPED_UNICODE);
     }
 
-    private function buildHomePayload(): array {
+    public function developer() {
+        if (!$this->isDeveloperSession()) {
+            $this->redirect('?route=home');
+            return;
+        }
+
+        $dashboardModel = new Dashboard();
+        $panel = $dashboardModel->getDeveloperOverview();
+        $panel['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+
+        $this->render('dashboard/developer/index', $panel);
+    }
+
+    public function developerData() {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if (!$this->isDeveloperSession()) {
+            http_response_code(403);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'No tienes permisos para este módulo.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $dashboardModel = new Dashboard();
+        $data = $dashboardModel->getDeveloperOverview();
+        $data['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+
+        echo json_encode([
+            'ok' => true,
+            'data' => $data
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function developerAction() {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if (!$this->isDeveloperSession()) {
+            http_response_code(403);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'No tienes permisos para ejecutar esta acción.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $action = strtolower(trim((string) ($_POST['action'] ?? '')));
         $dashboardModel = new Dashboard();
 
-        $ventasMes = $dashboardModel->getVentasPorMes();
+        switch ($action) {
+            case 'recalcular-totales-pedidos':
+                $updated = $dashboardModel->recalculatePedidosTotals();
+
+                if ($updated === null) {
+                    http_response_code(500);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'No se pudo recalcular los totales de pedidos.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $data = $dashboardModel->getDeveloperOverview();
+                $data['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+
+                echo json_encode([
+                    'ok' => true,
+                    'message' => "Recalculación completada. Filas afectadas: {$updated}.",
+                    'updated' => (int) $updated,
+                    'data' => $data
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+        }
+
+        http_response_code(400);
+        echo json_encode([
+            'ok' => false,
+            'message' => 'Acción no válida.'
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    private function buildHomePayload(string $periodoIngresos = 'mes'): array {
+        $dashboardModel = new Dashboard();
+        $periodo = $this->normalizePeriodoIngresos($periodoIngresos);
+
+        $serieIngresos = $dashboardModel->getIngresosSerie($periodo);
         $pedidosPorEstado = $dashboardModel->getPedidosPorEstado();
 
-        $labelsMes = [];
-        $datosVentasMes = [];
-        foreach ($ventasMes as $ventaMes) {
-            $labelsMes[] = 'Mes ' . (int) ($ventaMes['mes'] ?? 0);
-            $datosVentasMes[] = (float) ($ventaMes['total'] ?? 0);
+        $labelsIngresos = [];
+        $datosIngresos = [];
+        foreach ($serieIngresos as $registro) {
+            $labelsIngresos[] = $this->buildIngresoLabel($registro, $periodo);
+            $datosIngresos[] = (float) ($registro['total'] ?? 0);
         }
 
         $pedidosEstados = [];
@@ -63,11 +167,40 @@ class DashboardController extends Controller{
             "totalPedidos" => (int) $dashboardModel->getTotalPedidos(),
             "topProductos" => $dashboardModel->getProductosMasVendidos(),
             "ultimasVentas" => $dashboardModel->getUltimasVentas(),
-            "labelsMes" => $labelsMes,
-            "datosVentasMes" => $datosVentasMes,
+            "periodoIngresos" => $periodo,
+            "labelsIngresos" => $labelsIngresos,
+            "datosIngresos" => $datosIngresos,
+            // Compatibilidad con estructura previa del frontend
+            "labelsMes" => $labelsIngresos,
+            "datosVentasMes" => $datosIngresos,
             "pedidosEstados" => $pedidosEstados,
             "ultimaActualizacion" => date('Y-m-d H:i:s')
         ];
+    }
+
+    private function normalizePeriodoIngresos(string $periodo): string {
+        $periodo = strtolower(trim($periodo));
+        return in_array($periodo, ['dia', 'semana', 'mes'], true) ? $periodo : 'mes';
+    }
+
+    private function buildIngresoLabel(array $registro, string $periodo): string {
+        if ($periodo === 'dia') {
+            $bucket = (string) ($registro['bucket'] ?? '');
+            if ($bucket !== '' && strtotime($bucket) !== false) {
+                return date('d/m/Y', strtotime($bucket));
+            }
+            return $bucket !== '' ? $bucket : 'Día';
+        }
+
+        if ($periodo === 'semana') {
+            $anio = (int) ($registro['anio'] ?? 0);
+            $semana = (int) ($registro['semana'] ?? 0);
+            return sprintf('%d - Sem %02d', $anio, $semana);
+        }
+
+        $anio = (int) ($registro['anio'] ?? 0);
+        $mes = (int) ($registro['mes'] ?? 0);
+        return sprintf('%02d/%d', $mes, $anio);
     }
 
 
@@ -236,16 +369,271 @@ class DashboardController extends Controller{
     }
 
     public function perfil(){
-        $usuarioActual = null;
+        $usuariosModel = new Usuarios();
+        $idUsuario = (int) ($_SESSION['usuario']['user_id'] ?? 0);
 
-        if (isset($_SESSION['usuario']['usuario'])) {
-            $usuariosModel = new Usuarios();
-            $usuarioActual = $usuariosModel->getUserByUsername($_SESSION['usuario']['usuario']);
+        $usuarioActual = $idUsuario > 0
+            ? $usuariosModel->getUserById($idUsuario)
+            : null;
+
+        if (!$usuarioActual && isset($_SESSION['usuario']['usuario'])) {
+            $usuarioActual = $usuariosModel->getUserByUsername((string) $_SESSION['usuario']['usuario']);
         }
 
+        $isAdmin = $this->isAdminSession();
+        $isLastActiveAdmin = $idUsuario > 0 ? $usuariosModel->isLastActiveAdmin($idUsuario) : false;
+        $canDeactivateSelf = !($isAdmin && $isLastActiveAdmin);
+
         $this->render('dashboard/perfil/index', [
-            'usuario' => $usuarioActual
+            'usuario' => $usuarioActual,
+            'isAdmin' => $isAdmin,
+            'canDeactivateSelf' => $canDeactivateSelf,
+            'usuarios' => $isAdmin ? $usuariosModel->getAllUsers() : [],
+            'roles' => $isAdmin ? $usuariosModel->getRoles() : []
         ]);
+    }
+
+    public function perfilCrear(){
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if (!$this->isAdminSession()) {
+            http_response_code(403);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'No tienes permisos para crear perfiles.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $idRol = filter_input(INPUT_POST, 'id_rol', FILTER_VALIDATE_INT);
+        $usuario = trim((string) ($_POST['usuario'] ?? ''));
+        $correo = trim((string) ($_POST['correo'] ?? ''));
+        $contrasena = trim((string) ($_POST['contrasena'] ?? ''));
+        $estado = strtolower(trim((string) ($_POST['estado'] ?? 'activo')));
+
+        $usuariosModel = new Usuarios();
+        $idCreado = $usuariosModel->createUser(
+            (int) $idRol,
+            $usuario,
+            $correo,
+            $contrasena,
+            $estado
+        );
+
+        if (!$idCreado) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => $usuariosModel->getLastError() ?? 'No se pudo crear el perfil.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Perfil creado correctamente.',
+            'id' => (int) $idCreado
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function perfilActualizar(){
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $idSesion = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+        if ($idSesion <= 0) {
+            http_response_code(401);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Sesión inválida.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $isAdmin = $this->isAdminSession();
+        $idSolicitado = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        $idObjetivo = $isAdmin
+            ? (int) ($idSolicitado ?: $idSesion)
+            : $idSesion;
+
+        $usuario = trim((string) ($_POST['usuario'] ?? ''));
+        $correo = trim((string) ($_POST['correo'] ?? ''));
+        $contrasenaRaw = trim((string) ($_POST['contrasena'] ?? ''));
+        $contrasena = $contrasenaRaw === '' ? null : $contrasenaRaw;
+
+        $idRolRaw = filter_input(INPUT_POST, 'id_rol', FILTER_VALIDATE_INT);
+        $estadoRaw = strtolower(trim((string) ($_POST['estado'] ?? '')));
+        $idRol = $isAdmin ? ($idRolRaw ?: null) : null;
+        $estado = $isAdmin && $estadoRaw !== '' ? $estadoRaw : null;
+
+        $usuariosModel = new Usuarios();
+        $usuarioObjetivo = $usuariosModel->getUserById($idObjetivo);
+        if (!$usuarioObjetivo) {
+            http_response_code(404);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Usuario no encontrado.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if ($isAdmin) {
+            $rolActual = strtolower(trim((string) ($usuarioObjetivo['nombre_rol'] ?? '')));
+            $estadoActual = strtolower(trim((string) ($usuarioObjetivo['estado'] ?? '')));
+
+            $rolObjetivo = $rolActual;
+            if ($idRol !== null) {
+                $rolActualizado = $usuariosModel->getRoleNameById((int) $idRol);
+                if ($rolActualizado !== null && $rolActualizado !== '') {
+                    $rolObjetivo = $rolActualizado;
+                }
+            }
+
+            $estadoObjetivo = $estado !== null
+                ? strtolower(trim((string) $estado))
+                : $estadoActual;
+
+            $pierdeAdminActivo = $rolActual === 'admin'
+                && $estadoActual === 'activo'
+                && !($rolObjetivo === 'admin' && $estadoObjetivo === 'activo');
+
+            if ($pierdeAdminActivo && $usuariosModel->isLastActiveAdmin($idObjetivo)) {
+                http_response_code(400);
+                echo json_encode([
+                    'ok' => false,
+                    'message' => 'No puedes dejar al sistema sin administradores activos.'
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+        }
+
+        $actualizado = $usuariosModel->updateUser(
+            $idObjetivo,
+            $usuario,
+            $correo,
+            $contrasena,
+            $idRol,
+            $estado
+        );
+
+        if (!$actualizado) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => $usuariosModel->getLastError() ?? 'No se pudo actualizar el perfil.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if ($idObjetivo === $idSesion) {
+            $this->refreshSessionUser($idSesion);
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Perfil actualizado correctamente.',
+            'id' => (int) $idObjetivo
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function perfilEliminar(){
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $idSesion = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+        if ($idSesion <= 0) {
+            http_response_code(401);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Sesión inválida.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $isAdmin = $this->isAdminSession();
+        $idSolicitado = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        $idObjetivo = $isAdmin
+            ? (int) ($idSolicitado ?: $idSesion)
+            : $idSesion;
+
+        if (!$isAdmin && $idObjetivo !== $idSesion) {
+            http_response_code(403);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'No tienes permisos para eliminar este perfil.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $usuariosModel = new Usuarios();
+
+        if ($usuariosModel->isLastActiveAdmin($idObjetivo)) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'No puedes desactivar el último administrador activo.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $eliminado = $usuariosModel->deleteUser($idObjetivo);
+
+        if (!$eliminado) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => $usuariosModel->getLastError() ?? 'No se pudo eliminar el perfil.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if ($idObjetivo === $idSesion) {
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            $_SESSION = [];
+            session_destroy();
+
+            echo json_encode([
+                'ok' => true,
+                'message' => 'Tu perfil fue desactivado correctamente.',
+                'id' => (int) $idObjetivo,
+                'logout' => true
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Perfil desactivado correctamente.',
+            'id' => (int) $idObjetivo,
+            'logout' => false
+        ], JSON_UNESCAPED_UNICODE);
     }
 
     public function clientes(){
@@ -974,6 +1362,31 @@ class DashboardController extends Controller{
             'message' => 'Categoría eliminada correctamente.',
             'id' => (int) $idCategoria
         ], JSON_UNESCAPED_UNICODE);
+    }
+
+    private function isAdminSession(): bool {
+        $rol = strtolower(trim((string) ($_SESSION['usuario']['nombre_rol'] ?? '')));
+        return $rol === 'admin';
+    }
+
+    private function isDeveloperSession(): bool {
+        $rol = strtolower(trim((string) ($_SESSION['usuario']['nombre_rol'] ?? '')));
+        return in_array($rol, ['desarrollador', 'developer'], true);
+    }
+
+    private function refreshSessionUser(int $idUsuario): void {
+        if ($idUsuario <= 0) {
+            return;
+        }
+
+        $usuariosModel = new Usuarios();
+        $usuario = $usuariosModel->getUserById($idUsuario);
+        if (!$usuario) {
+            return;
+        }
+
+        unset($usuario['contrasena']);
+        $_SESSION['usuario'] = $usuario;
     }
 
     public function configuration(){

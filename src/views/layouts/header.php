@@ -8,6 +8,10 @@
     <title>RECALDE</title>
 </head>
 <body>
+    <?php
+      $rolSesion = strtolower(trim((string) ($_SESSION['usuario']['nombre_rol'] ?? '')));
+      $isDeveloperRole = in_array($rolSesion, ['desarrollador', 'developer'], true);
+    ?>
     <header>
 
         <!-- Sidebar for navigation -->
@@ -92,6 +96,15 @@
               </a>
               <span class="tooltip">Configuraciones</span>
             </li>
+            <?php if ($isDeveloperRole): ?>
+            <li>
+              <a href="/developer" data-page="developer">
+                <i class='bx bx-code-alt'></i>
+                <span class="links_name">Developer</span>
+              </a>
+              <span class="tooltip">Developer</span>
+            </li>
+            <?php endif; ?>
             <!-- Profile section -->
             <li class="profile">
               <div class="profile-details">

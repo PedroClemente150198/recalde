@@ -10,8 +10,11 @@ const homeDashboardState = {
   intervalId: null,
   chartVentasMes: null,
   chartPedidos: null,
-  isFetching: false
+  isFetching: false,
+  ingresosPeriodo: "mes"
 };
+const TABLE_PAGE_SIZE = 5;
+let tablePaginationSequence = 0;
 
 // Event listener for the menu button to toggle the sidebar open/close
 closeBtn.addEventListener("click", () => {
@@ -45,10 +48,152 @@ async function bootRouteModules(page) {
   const isHomeRoute = page === "home" || Boolean(content?.querySelector('[data-home-dashboard="1"]'));
   if (isHomeRoute) {
     await initHomeDashboardRealtime();
+    initTablePagination(content);
     return;
   }
 
   destroyHomeDashboardRealtime();
+  initTablePagination(content);
+  await initDeveloperPanel();
+}
+
+function getTablePaginationId(table) {
+  if (!table.dataset.paginationId) {
+    tablePaginationSequence += 1;
+    table.dataset.paginationId = `table-pagination-${tablePaginationSequence}`;
+  }
+  return table.dataset.paginationId;
+}
+
+function isPlaceholderTableRow(row) {
+  if (!row) return false;
+  const cells = row.querySelectorAll("td, th");
+  if (cells.length !== 1) return false;
+  const colspan = Number(cells[0].getAttribute("colspan") ?? 1);
+  return Number.isFinite(colspan) && colspan > 1;
+}
+
+function initTablePagination(scope = content || document) {
+  const root = scope instanceof Element || scope instanceof Document ? scope : document;
+  const tables = [...root.querySelectorAll("table")];
+
+  tables.forEach((table) => {
+    const tbody = table.tBodies?.[0];
+    if (!tbody) return;
+
+    const rows = [...tbody.querySelectorAll(":scope > tr")];
+    if (rows.length === 0) return;
+
+    const tableId = getTablePaginationId(table);
+    const existingControls = root.querySelector(`.table-pagination[data-pagination-for="${tableId}"]`);
+    if (existingControls) {
+      existingControls.remove();
+    }
+
+    rows.forEach((row) => {
+      row.hidden = false;
+    });
+
+    const pageSizeRaw = Number(table.dataset.pageSize ?? TABLE_PAGE_SIZE);
+    const pageSize = Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+      ? Math.floor(pageSizeRaw)
+      : TABLE_PAGE_SIZE;
+
+    const hasPlaceholder = rows.length === 1 && isPlaceholderTableRow(rows[0]);
+    if (hasPlaceholder || rows.length <= pageSize) {
+      table.dataset.paginationCurrentPage = "1";
+      return;
+    }
+
+    const totalRows = rows.length;
+    const totalPages = Math.ceil(totalRows / pageSize);
+    let currentPage = Number(table.dataset.paginationCurrentPage ?? 1);
+    if (!Number.isFinite(currentPage) || currentPage < 1) {
+      currentPage = 1;
+    }
+
+    const pagination = document.createElement("div");
+    pagination.className = "table-pagination";
+    pagination.dataset.paginationFor = tableId;
+
+    const nav = document.createElement("div");
+    nav.className = "table-pagination-nav";
+
+    const prevBtn = document.createElement("button");
+    prevBtn.type = "button";
+    prevBtn.className = "table-pagination-btn";
+    prevBtn.setAttribute("aria-label", "Página anterior");
+    prevBtn.textContent = "←";
+
+    const pagesNode = document.createElement("div");
+    pagesNode.className = "table-pagination-pages";
+
+    const nextBtn = document.createElement("button");
+    nextBtn.type = "button";
+    nextBtn.className = "table-pagination-btn";
+    nextBtn.setAttribute("aria-label", "Página siguiente");
+    nextBtn.textContent = "→";
+
+    const info = document.createElement("p");
+    info.className = "table-pagination-info";
+
+    nav.append(prevBtn, pagesNode, nextBtn);
+    pagination.append(nav, info);
+
+    const tableParent = table.parentElement;
+    if (tableParent) {
+      if (table.nextSibling) {
+        tableParent.insertBefore(pagination, table.nextSibling);
+      } else {
+        tableParent.appendChild(pagination);
+      }
+    }
+
+    const renderPage = (targetPage) => {
+      currentPage = Math.min(Math.max(targetPage, 1), totalPages);
+      table.dataset.paginationCurrentPage = String(currentPage);
+
+      const start = (currentPage - 1) * pageSize;
+      const end = start + pageSize;
+
+      rows.forEach((row, index) => {
+        row.hidden = !(index >= start && index < end);
+      });
+
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
+
+      pagesNode.innerHTML = "";
+      for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+        const pageBtn = document.createElement("button");
+        pageBtn.type = "button";
+        pageBtn.className = "table-pagination-btn";
+        pageBtn.textContent = String(pageNumber);
+        if (pageNumber === currentPage) {
+          pageBtn.classList.add("is-active");
+          pageBtn.setAttribute("aria-current", "page");
+        }
+        pageBtn.addEventListener("click", () => {
+          renderPage(pageNumber);
+        });
+        pagesNode.appendChild(pageBtn);
+      }
+
+      const shownFrom = start + 1;
+      const shownTo = Math.min(end, totalRows);
+      info.textContent = `Mostrando ${shownFrom}-${shownTo} de ${totalRows} registros`;
+    };
+
+    prevBtn.addEventListener("click", () => {
+      renderPage(currentPage - 1);
+    });
+
+    nextBtn.addEventListener("click", () => {
+      renderPage(currentPage + 1);
+    });
+
+    renderPage(currentPage);
+  });
 }
 
 function destroyHomeDashboardRealtime() {
@@ -79,6 +224,183 @@ function getHomeDashboardInitialData() {
   } catch (error) {
     return null;
   }
+}
+
+function getDeveloperPanelInitialData() {
+  const node = document.querySelector("#developer-panel-data");
+  if (!node) return null;
+
+  try {
+    return JSON.parse(node.textContent || "{}");
+  } catch (error) {
+    return null;
+  }
+}
+
+function setDeveloperFeedback(message, type = "error") {
+  const feedback = document.querySelector("#developer-feedback");
+  if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
+
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.classList.remove("error", "success");
+  feedback.classList.add(type);
+}
+
+function setNodeTextValue(selector, value) {
+  const node = document.querySelector(selector);
+  if (!node) return;
+  node.textContent = String(value ?? "-");
+}
+
+function updateDeveloperDbStatus(statusValue) {
+  const node = document.querySelector("#developer-db-status");
+  if (!node) return;
+
+  const status = String(statusValue ?? "").toLowerCase().trim();
+  const isOk = status === "ok";
+
+  node.classList.remove("ok", "error");
+  node.classList.add(isOk ? "ok" : "error");
+  node.textContent = isOk ? "Conectada" : "Error";
+}
+
+function renderDeveloperPanel(data) {
+  const payload = data && typeof data === "object" ? data : {};
+  const info = payload.info && typeof payload.info === "object" ? payload.info : {};
+  const resumen = payload.resumen && typeof payload.resumen === "object" ? payload.resumen : {};
+  const integridad = payload.integridad && typeof payload.integridad === "object" ? payload.integridad : {};
+
+  setNodeTextValue("#developer-info-app", info.appName ?? "RECALDE");
+  setNodeTextValue("#developer-info-version", info.appVersion ?? "1.0.0");
+  setNodeTextValue("#developer-info-php", info.phpVersion ?? "-");
+  setNodeTextValue("#developer-info-role", payload.rolActual ?? "-");
+  setNodeTextValue("#developer-info-generated", info.generatedAt ?? "-");
+  updateDeveloperDbStatus(info.dbStatus ?? "error");
+
+  setNodeTextValue("#developer-count-usuarios", Number(resumen.usuarios ?? 0));
+  setNodeTextValue("#developer-count-clientes", Number(resumen.clientes ?? 0));
+  setNodeTextValue("#developer-count-productos", Number(resumen.productos ?? 0));
+  setNodeTextValue("#developer-count-pedidos", Number(resumen.pedidos ?? 0));
+  setNodeTextValue("#developer-count-ventas", Number(resumen.ventas ?? 0));
+  setNodeTextValue("#developer-count-historial", Number(resumen.historial ?? 0));
+
+  setNodeTextValue("#developer-check-pedidos-sin-detalle", Number(integridad.pedidosSinDetalle ?? 0));
+  setNodeTextValue("#developer-check-pedidos-descuadrados", Number(integridad.pedidosTotalesDescuadrados ?? 0));
+  setNodeTextValue("#developer-check-ventas-sin-historial", Number(integridad.ventasSinHistorial ?? 0));
+}
+
+async function requestDeveloperData() {
+  const response = await fetch("?route=developer-data");
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La respuesta del módulo Developer no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo cargar el panel de desarrollador.");
+  }
+
+  return data.data || {};
+}
+
+async function requestDeveloperAction(action) {
+  const params = new URLSearchParams();
+  params.append("action", String(action ?? ""));
+
+  const response = await fetch("?route=developer-action", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    },
+    body: params.toString()
+  });
+
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La respuesta del módulo Developer no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo ejecutar la acción de desarrollador.");
+  }
+
+  return data;
+}
+
+async function initDeveloperPanel() {
+  if (!content?.querySelector('[data-developer-panel="1"]')) {
+    return;
+  }
+
+  setDeveloperFeedback("", "error");
+
+  const initialData = getDeveloperPanelInitialData();
+  if (initialData) {
+    renderDeveloperPanel(initialData);
+    return;
+  }
+
+  try {
+    const data = await requestDeveloperData();
+    renderDeveloperPanel(data);
+  } catch (error) {
+    setDeveloperFeedback(error.message, "error");
+  }
+}
+
+function normalizeHomeIngresosPeriodo(value) {
+  const periodo = String(value ?? "").toLowerCase().trim();
+  return ["dia", "semana", "mes"].includes(periodo) ? periodo : "mes";
+}
+
+function getHomeIngresosTitle(periodo) {
+  if (periodo === "dia") return "Ingresos por Día";
+  if (periodo === "semana") return "Ingresos por Semana";
+  return "Ingresos por Mes";
+}
+
+function getHomeIngresosSubtitle(periodo) {
+  if (periodo === "dia") return "Detalle diario de ingresos registrados.";
+  if (periodo === "semana") return "Comparativa semanal de ingresos.";
+  return "Tendencia mensual del rendimiento comercial acumulado.";
+}
+
+function getHomeIngresosDatasetLabel(periodo) {
+  if (periodo === "dia") return "Ingresos diarios";
+  if (periodo === "semana") return "Ingresos semanales";
+  return "Ingresos mensuales";
+}
+
+function syncHomeIngresosSelector(periodo) {
+  const selector = document.querySelector("#home-ingresos-periodo");
+  if (selector) {
+    const normalized = normalizeHomeIngresosPeriodo(periodo);
+    if (selector.value !== normalized) {
+      selector.value = normalized;
+    }
+  }
+}
+
+function renderHomeIngresosHead(periodo) {
+  const titleNode = document.querySelector("#home-ingresos-title");
+  const subtitleNode = document.querySelector("#home-ingresos-subtitle");
+  if (titleNode) {
+    titleNode.textContent = getHomeIngresosTitle(periodo);
+  }
+  if (subtitleNode) {
+    subtitleNode.textContent = getHomeIngresosSubtitle(periodo);
+  }
+  syncHomeIngresosSelector(periodo);
 }
 
 function renderHomeTopProductos(topProductos) {
@@ -140,8 +462,15 @@ function renderHomeCharts(data) {
   const pedidosCanvas = document.querySelector("#chartPedidos");
   if (!ventasCanvas || !pedidosCanvas) return;
 
-  const labelsMes = Array.isArray(data.labelsMes) ? data.labelsMes : [];
-  const datosVentasMes = Array.isArray(data.datosVentasMes) ? data.datosVentasMes : [];
+  const periodoIngresos = normalizeHomeIngresosPeriodo(data.periodoIngresos ?? homeDashboardState.ingresosPeriodo);
+  const labelsIngresos = Array.isArray(data.labelsIngresos)
+    ? data.labelsIngresos
+    : (Array.isArray(data.labelsMes) ? data.labelsMes : []);
+  const datosIngresos = Array.isArray(data.datosIngresos)
+    ? data.datosIngresos
+    : (Array.isArray(data.datosVentasMes) ? data.datosVentasMes : []);
+  const ingresosDatasetLabel = getHomeIngresosDatasetLabel(periodoIngresos);
+
   const pedidosEstadosObj = data.pedidosEstados && typeof data.pedidosEstados === "object"
     ? data.pedidosEstados
     : {};
@@ -152,10 +481,10 @@ function renderHomeCharts(data) {
     homeDashboardState.chartVentasMes = new Chart(ventasCanvas, {
       type: "line",
       data: {
-        labels: labelsMes,
+        labels: labelsIngresos,
         datasets: [{
-          label: "Ingresos mensuales",
-          data: datosVentasMes,
+          label: ingresosDatasetLabel,
+          data: datosIngresos,
           borderColor: "#00c3ff",
           backgroundColor: "rgba(0, 195, 255, 0.15)",
           borderWidth: 3,
@@ -184,8 +513,9 @@ function renderHomeCharts(data) {
       }
     });
   } else {
-    homeDashboardState.chartVentasMes.data.labels = labelsMes;
-    homeDashboardState.chartVentasMes.data.datasets[0].data = datosVentasMes;
+    homeDashboardState.chartVentasMes.data.labels = labelsIngresos;
+    homeDashboardState.chartVentasMes.data.datasets[0].label = ingresosDatasetLabel;
+    homeDashboardState.chartVentasMes.data.datasets[0].data = datosIngresos;
     homeDashboardState.chartVentasMes.update("none");
   }
 
@@ -304,6 +634,10 @@ function renderHomeDashboard(data) {
   const ingresosNode = document.querySelector("#home-ingresos-totales");
   const productoLiderNode = document.querySelector("#home-producto-lider");
   const updatedAtNode = document.querySelector("#home-updated-at");
+  const periodoIngresos = normalizeHomeIngresosPeriodo(data.periodoIngresos ?? homeDashboardState.ingresosPeriodo);
+
+  homeDashboardState.ingresosPeriodo = periodoIngresos;
+  renderHomeIngresosHead(periodoIngresos);
 
   if (totalVentasNode) {
     totalVentasNode.textContent = String(Number(data.totalVentas ?? 0));
@@ -329,10 +663,17 @@ function renderHomeDashboard(data) {
   renderHomeTopProductos(data.topProductos);
   renderHomeUltimasVentas(data.ultimasVentas);
   renderHomeCharts(data);
+  initTablePagination(content);
 }
 
 async function requestHomeDashboardData() {
-  const response = await fetch("?route=home-data");
+  const periodo = normalizeHomeIngresosPeriodo(homeDashboardState.ingresosPeriodo);
+  const query = new URLSearchParams({
+    route: "home-data",
+    periodo
+  });
+
+  const response = await fetch(`?${query.toString()}`);
   const responseType = response.headers.get("content-type") || "";
   if (!responseType.includes("application/json")) {
     throw new Error("Respuesta inválida en métricas del dashboard.");
@@ -378,6 +719,7 @@ async function initHomeDashboardRealtime() {
 
   const initialData = getHomeDashboardInitialData();
   if (initialData) {
+    homeDashboardState.ingresosPeriodo = normalizeHomeIngresosPeriodo(initialData.periodoIngresos ?? "mes");
     renderHomeDashboard(initialData);
   } else {
     await refreshHomeDashboardData();
@@ -562,6 +904,34 @@ function closeCategoriaEditModal() {
   }
 }
 
+function openPerfilCreateModal() {
+  const modal = document.querySelector("#perfil-create-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closePerfilCreateModal() {
+  const modal = document.querySelector("#perfil-create-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
+function openPerfilEditModal() {
+  const modal = document.querySelector("#perfil-edit-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closePerfilEditModal() {
+  const modal = document.querySelector("#perfil-edit-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
 function formatMoney(value) {
   const number = Number(value || 0);
   return `$${number.toFixed(2)}`;
@@ -627,6 +997,7 @@ async function loadPedidoDetail(idPedido) {
         <td colspan="4" style="text-align:center;">Este pedido no tiene productos registrados.</td>
       </tr>
     `;
+    initTablePagination(content);
     return;
   }
 
@@ -640,6 +1011,7 @@ async function loadPedidoDetail(idPedido) {
       </tr>
     `)
     .join("");
+  initTablePagination(content);
 }
 
 function fillPedidoEditForm(pedido) {
@@ -727,6 +1099,215 @@ function setClienteEditFeedback(message, type = "error") {
   feedback.textContent = message;
   feedback.classList.remove("error", "success");
   feedback.classList.add(type);
+}
+
+function setPerfilUpdateFeedback(message, type = "error") {
+  const feedback = document.querySelector("#perfil-update-feedback");
+  if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
+
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.classList.remove("error", "success");
+  feedback.classList.add(type);
+}
+
+function setPerfilCreateFeedback(message, type = "error") {
+  const feedback = document.querySelector("#perfil-create-feedback");
+  if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
+
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.classList.remove("error", "success");
+  feedback.classList.add(type);
+}
+
+function setPerfilEditFeedback(message, type = "error") {
+  const feedback = document.querySelector("#perfil-edit-feedback");
+  if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
+
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.classList.remove("error", "success");
+  feedback.classList.add(type);
+}
+
+function getPerfilUpdatePayload() {
+  const id = Number(document.querySelector("#perfil-update-form [name='id']")?.value ?? 0);
+  const usuario = String(document.querySelector("#perfil-update-usuario")?.value ?? "").trim();
+  const correo = String(document.querySelector("#perfil-update-correo")?.value ?? "").trim();
+  const contrasena = String(document.querySelector("#perfil-update-contrasena")?.value ?? "").trim();
+  return { id, usuario, correo, contrasena };
+}
+
+function getPerfilCreatePayload() {
+  const usuario = String(document.querySelector("#perfil-create-usuario")?.value ?? "").trim();
+  const correo = String(document.querySelector("#perfil-create-correo")?.value ?? "").trim();
+  const contrasena = String(document.querySelector("#perfil-create-contrasena")?.value ?? "").trim();
+  const idRol = Number(document.querySelector("#perfil-create-id-rol")?.value ?? 0);
+  const estado = normalizeEstadoValue(document.querySelector("#perfil-create-estado")?.value ?? "activo");
+  return { usuario, correo, contrasena, idRol, estado };
+}
+
+function getPerfilEditPayload() {
+  const id = Number(document.querySelector("#perfil-edit-id")?.value ?? 0);
+  const usuario = String(document.querySelector("#perfil-edit-usuario")?.value ?? "").trim();
+  const correo = String(document.querySelector("#perfil-edit-correo")?.value ?? "").trim();
+  const contrasena = String(document.querySelector("#perfil-edit-contrasena")?.value ?? "").trim();
+  const idRol = Number(document.querySelector("#perfil-edit-id-rol")?.value ?? 0);
+  const estado = normalizeEstadoValue(document.querySelector("#perfil-edit-estado")?.value ?? "activo");
+  return { id, usuario, correo, contrasena, idRol, estado };
+}
+
+function fillPerfilEditForm(data) {
+  const idNode = document.querySelector("#perfil-edit-id");
+  const usuarioNode = document.querySelector("#perfil-edit-usuario");
+  const correoNode = document.querySelector("#perfil-edit-correo");
+  const contrasenaNode = document.querySelector("#perfil-edit-contrasena");
+  const rolNode = document.querySelector("#perfil-edit-id-rol");
+  const estadoNode = document.querySelector("#perfil-edit-estado");
+  const submitBtn = document.querySelector("#perfil-edit-submit");
+
+  if (idNode) idNode.value = String(data.id ?? "");
+  if (usuarioNode) usuarioNode.value = String(data.usuario ?? "");
+  if (correoNode) correoNode.value = String(data.correo ?? "");
+  if (contrasenaNode) contrasenaNode.value = "";
+  if (rolNode) rolNode.value = String(data.idRol ?? "");
+  if (estadoNode) estadoNode.value = String(normalizeEstadoValue(data.estado ?? "activo"));
+
+  setPerfilEditFeedback("", "error");
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Guardar Cambios";
+  }
+}
+
+function resetPerfilCreateForm() {
+  const form = document.querySelector("#perfil-create-form");
+  const submitBtn = document.querySelector("#perfil-create-submit");
+
+  if (form) {
+    form.reset();
+  }
+
+  setPerfilCreateFeedback("", "error");
+
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Guardar Usuario";
+  }
+}
+
+async function requestPerfilCreate(payload) {
+  const params = new URLSearchParams();
+  params.append("usuario", payload.usuario);
+  params.append("correo", payload.correo);
+  params.append("contrasena", payload.contrasena);
+  params.append("id_rol", String(payload.idRol));
+  params.append("estado", payload.estado);
+
+  const response = await fetch("?route=perfil-crear", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    },
+    body: params.toString()
+  });
+
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo crear el perfil.");
+  }
+
+  return data;
+}
+
+async function requestPerfilUpdate(payload) {
+  const params = new URLSearchParams();
+  if (payload.id > 0) {
+    params.append("id", String(payload.id));
+  }
+  params.append("usuario", payload.usuario);
+  params.append("correo", payload.correo);
+  params.append("contrasena", payload.contrasena);
+  if (payload.idRol > 0) {
+    params.append("id_rol", String(payload.idRol));
+  }
+  if (payload.estado) {
+    params.append("estado", payload.estado);
+  }
+
+  const response = await fetch("?route=perfil-actualizar", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    },
+    body: params.toString()
+  });
+
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo actualizar el perfil.");
+  }
+
+  return data;
+}
+
+async function requestPerfilDelete(idUsuario) {
+  const params = new URLSearchParams();
+  if (idUsuario > 0) {
+    params.append("id", String(idUsuario));
+  }
+
+  const response = await fetch("?route=perfil-eliminar", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    },
+    body: params.toString()
+  });
+
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo desactivar el perfil.");
+  }
+
+  return data;
 }
 
 function fillClienteEditForm(data) {
@@ -1756,6 +2337,7 @@ function fillHistorialDetail(registro, detalle = [], resumen = {}) {
   setNodeText("#historial-detalle-total-calculado", formatMoney(totalCalculado));
 
   renderHistorialDetalleItems(detalle);
+  initTablePagination(content);
 }
 
 async function loadHistorialDetail(idHistorial) {
@@ -1955,6 +2537,64 @@ function printHistorialRegistro(registro, detalle = [], resumen = {}) {
 
 if (content) {
   content.addEventListener("click", async (e) => {
+    const quickNavBtn = e.target.closest("[data-nav-page]");
+    if (quickNavBtn) {
+      const page = String(quickNavBtn.dataset.navPage ?? "").trim();
+      if (!page) return;
+
+      try {
+        await loadRouteContent(page);
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+
+    const developerRefreshBtn = e.target.closest('[data-action="developer-refresh"]');
+    if (developerRefreshBtn) {
+      const originalLabel = developerRefreshBtn.textContent;
+      developerRefreshBtn.disabled = true;
+      developerRefreshBtn.textContent = "Actualizando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const data = await requestDeveloperData();
+        renderDeveloperPanel(data);
+        setDeveloperFeedback("Diagnóstico actualizado correctamente.", "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerRefreshBtn.disabled = false;
+        developerRefreshBtn.textContent = originalLabel;
+      }
+      return;
+    }
+
+    const developerRecalculateBtn = e.target.closest('[data-action="developer-recalcular-pedidos"]');
+    if (developerRecalculateBtn) {
+      const confirmed = window.confirm("Se recalcularán los totales de pedidos desde el detalle. ¿Deseas continuar?");
+      if (!confirmed) return;
+
+      const originalLabel = developerRecalculateBtn.textContent;
+      developerRecalculateBtn.disabled = true;
+      developerRecalculateBtn.textContent = "Procesando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("recalcular-totales-pedidos");
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+        setDeveloperFeedback(result.message || "Acción ejecutada correctamente.", "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerRecalculateBtn.disabled = false;
+        developerRecalculateBtn.textContent = originalLabel;
+      }
+      return;
+    }
+
     const newVentaBtn = e.target.closest('[data-action="nueva-venta"]');
     if (newVentaBtn) {
       resetVentaCreateForm();
@@ -2053,6 +2693,65 @@ if (content) {
       try {
         await requestProductoDelete(idProducto);
         await loadRouteContent("inventario");
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+
+    const newPerfilUserBtn = e.target.closest('[data-action="nuevo-usuario-perfil"]');
+    if (newPerfilUserBtn) {
+      resetPerfilCreateForm();
+      openPerfilCreateModal();
+      return;
+    }
+
+    const editPerfilUserBtn = e.target.closest('[data-action="editar-usuario-perfil"]');
+    if (editPerfilUserBtn) {
+      fillPerfilEditForm({
+        id: editPerfilUserBtn.dataset.id ?? "",
+        usuario: editPerfilUserBtn.dataset.usuario ?? "",
+        correo: editPerfilUserBtn.dataset.correo ?? "",
+        idRol: editPerfilUserBtn.dataset.idRol ?? "",
+        estado: editPerfilUserBtn.dataset.estado ?? "activo"
+      });
+      openPerfilEditModal();
+      return;
+    }
+
+    const deletePerfilUserBtn = e.target.closest('[data-action="eliminar-usuario-perfil"]');
+    if (deletePerfilUserBtn) {
+      const idUsuario = Number(deletePerfilUserBtn.dataset.id ?? 0);
+      const nombreUsuario = deletePerfilUserBtn.dataset.usuario || "este usuario";
+      const confirmed = window.confirm(`¿Seguro que deseas desactivar a ${nombreUsuario}?`);
+      if (!confirmed) return;
+
+      try {
+        const data = await requestPerfilDelete(idUsuario);
+        if (data.logout) {
+          window.location.href = "?route=login";
+          return;
+        }
+        await loadRouteContent("perfil");
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+
+    const deleteMyProfileBtn = e.target.closest('[data-action="eliminar-mi-perfil"]');
+    if (deleteMyProfileBtn) {
+      const idUsuario = Number(deleteMyProfileBtn.dataset.id ?? 0);
+      const confirmed = window.confirm("¿Seguro que deseas desactivar tu perfil? Esta acción cerrará tu sesión.");
+      if (!confirmed) return;
+
+      try {
+        const data = await requestPerfilDelete(idUsuario);
+        if (data.logout) {
+          window.location.href = "?route=login";
+          return;
+        }
+        await loadRouteContent("perfil");
       } catch (error) {
         alert(error.message);
       }
@@ -2275,6 +2974,16 @@ if (content) {
       return;
     }
 
+    if (closeBtnModal?.dataset?.close === "perfil-create-modal") {
+      closePerfilCreateModal();
+      return;
+    }
+
+    if (closeBtnModal?.dataset?.close === "perfil-edit-modal") {
+      closePerfilEditModal();
+      return;
+    }
+
     if (closeBtnModal?.dataset?.close === "cliente-create-modal") {
       closeClienteCreateModal();
       return;
@@ -2291,6 +3000,12 @@ if (content) {
   });
 
   content.addEventListener("change", (e) => {
+    if (e.target.matches("#home-ingresos-periodo")) {
+      homeDashboardState.ingresosPeriodo = normalizeHomeIngresosPeriodo(e.target.value);
+      refreshHomeDashboardData().catch((error) => console.error(error));
+      return;
+    }
+
     if (e.target.matches("#venta-create-pedido")) {
       updateVentaCreateTotalFromPedido();
       return;
@@ -2315,6 +3030,159 @@ if (content) {
   });
 
   content.addEventListener("submit", async (e) => {
+    const perfilUpdateForm = e.target.closest("#perfil-update-form");
+    if (perfilUpdateForm) {
+      e.preventDefault();
+
+      const payload = getPerfilUpdatePayload();
+      const submitBtn = document.querySelector("#perfil-update-submit");
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Guardando...";
+      }
+
+      setPerfilUpdateFeedback("", "error");
+
+      if (payload.id <= 0) {
+        setPerfilUpdateFeedback("ID de perfil inválido.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+        return;
+      }
+
+      if (!payload.usuario || !payload.correo) {
+        setPerfilUpdateFeedback("Usuario y correo son obligatorios.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+        return;
+      }
+
+      try {
+        await requestPerfilUpdate({
+          id: payload.id,
+          usuario: payload.usuario,
+          correo: payload.correo,
+          contrasena: payload.contrasena,
+          idRol: 0,
+          estado: ""
+        });
+        await loadRouteContent("perfil");
+      } catch (error) {
+        setPerfilUpdateFeedback(error.message, "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+      }
+      return;
+    }
+
+    const perfilCreateForm = e.target.closest("#perfil-create-form");
+    if (perfilCreateForm) {
+      e.preventDefault();
+
+      const payload = getPerfilCreatePayload();
+      const submitBtn = document.querySelector("#perfil-create-submit");
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Guardando...";
+      }
+
+      setPerfilCreateFeedback("", "error");
+
+      if (!payload.usuario || !payload.correo || !payload.contrasena) {
+        setPerfilCreateFeedback("Usuario, correo y contraseña son obligatorios.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Usuario";
+        }
+        return;
+      }
+
+      if (payload.idRol <= 0) {
+        setPerfilCreateFeedback("Debes seleccionar un rol válido.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Usuario";
+        }
+        return;
+      }
+
+      try {
+        await requestPerfilCreate(payload);
+        closePerfilCreateModal();
+        await loadRouteContent("perfil");
+      } catch (error) {
+        setPerfilCreateFeedback(error.message, "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Usuario";
+        }
+      }
+      return;
+    }
+
+    const perfilEditForm = e.target.closest("#perfil-edit-form");
+    if (perfilEditForm) {
+      e.preventDefault();
+
+      const payload = getPerfilEditPayload();
+      const submitBtn = document.querySelector("#perfil-edit-submit");
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Guardando...";
+      }
+
+      setPerfilEditFeedback("", "error");
+
+      if (payload.id <= 0) {
+        setPerfilEditFeedback("ID de usuario inválido.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+        return;
+      }
+
+      if (!payload.usuario || !payload.correo) {
+        setPerfilEditFeedback("Usuario y correo son obligatorios.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+        return;
+      }
+
+      if (payload.idRol <= 0) {
+        setPerfilEditFeedback("Debes seleccionar un rol válido.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+        return;
+      }
+
+      try {
+        await requestPerfilUpdate(payload);
+        closePerfilEditModal();
+        await loadRouteContent("perfil");
+      } catch (error) {
+        setPerfilEditFeedback(error.message, "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+      }
+      return;
+    }
+
     const ventaEditForm = e.target.closest("#venta-edit-form");
     if (ventaEditForm) {
       e.preventDefault();
@@ -2760,6 +3628,8 @@ document.addEventListener("keydown", (e) => {
     closeCategoriaEditModal();
     closeProductoCreateModal();
     closeProductoEditModal();
+    closePerfilCreateModal();
+    closePerfilEditModal();
     closeClienteCreateModal();
     closeClienteEditModal();
     closeHistorialModal();
