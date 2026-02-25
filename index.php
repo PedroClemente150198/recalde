@@ -19,6 +19,43 @@ use controllers\dashboardcontroller;
 // Por ejemplo, ?route=usuarios
 $route = $_GET['route'] ?? 'home';
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$publicRoutes = ['login', 'validar-login', 'logout'];
+if (!in_array($route, $publicRoutes, true)) {
+    if (!isset($_SESSION['usuario'])) {
+        header("Location: ?route=login");
+        exit();
+    }
+
+    $mustChangePassword = (int) ($_SESSION['usuario']['debe_cambiar_contrasena'] ?? 0) === 1;
+    if ($mustChangePassword) {
+        $allowedDuringPasswordChange = ['dashboard', 'perfil', 'perfil-actualizar', 'logout'];
+        if (!in_array($route, $allowedDuringPasswordChange, true)) {
+            $expectsJson = $_SERVER['REQUEST_METHOD'] !== 'GET'
+                || str_ends_with($route, '-data')
+                || in_array($route, ['pedido-detalle', 'historial-detalle', 'home-data', 'developer-data'], true);
+
+            if ($expectsJson) {
+                header('Content-Type: application/json; charset=UTF-8');
+                http_response_code(403);
+                echo json_encode([
+                    'ok' => false,
+                    'message' => 'Debes cambiar tu contraseña antes de continuar.',
+                    'force_password_change' => true,
+                    'redirect' => '?route=perfil'
+                ], JSON_UNESCAPED_UNICODE);
+                exit();
+            }
+
+            header("Location: ?route=perfil");
+            exit();
+        }
+    }
+}
+
 //echo $route.'<br>';
 
 switch($route) {
@@ -378,7 +415,7 @@ switch($route) {
         $controller->homeData();
         break;
     default:
-        header("Location: login");
+        header("Location: ?route=login");
         exit();
 }
 /*

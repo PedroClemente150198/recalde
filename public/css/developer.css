@@ -188,6 +188,65 @@
     color: #ffd0d0;
 }
 
+.developer-credentials-note {
+    margin: 0 0 10px;
+    color: #9ac7de;
+    font-size: 0.88rem;
+}
+
+.developer-table-wrap {
+    overflow-x: auto;
+}
+
+.developer-credentials-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 980px;
+}
+
+.developer-credentials-table th,
+.developer-credentials-table td {
+    border: 1px solid rgba(111, 189, 231, 0.2);
+    padding: 8px 10px;
+    font-size: 0.84rem;
+    vertical-align: top;
+}
+
+.developer-credentials-table th {
+    background: rgba(5, 21, 34, 0.95);
+    color: #d7effd;
+    text-align: left;
+}
+
+.developer-credentials-table td {
+    background: rgba(4, 16, 27, 0.76);
+    color: #e8f6ff;
+}
+
+.developer-credentials-table .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    word-break: break-all;
+}
+
+.developer-hash-label {
+    margin-left: 6px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(33, 124, 178, 0.35);
+    border: 1px solid rgba(101, 193, 242, 0.45);
+    color: #cfefff;
+}
+
+.developer-reset-btn {
+    height: 32px;
+    font-size: 0.78rem;
+    padding: 0 10px;
+    white-space: nowrap;
+}
+
 @media (max-width: 720px) {
     .developer-page {
         padding: 12px;

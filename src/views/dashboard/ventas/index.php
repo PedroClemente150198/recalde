@@ -7,7 +7,7 @@ $pedidosDisponibles = $pedidosDisponibles ?? [];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href=" <?php BASE_PATH; ?>/public/css/ventas.css">
+    <link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/ventas.css">
 </head>
 <body>
 <div class="ventas-container">

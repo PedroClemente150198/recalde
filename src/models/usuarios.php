@@ -11,6 +11,7 @@ class Usuarios {
     private string $table_name = "usuarios";
     private ?string $lastError = null;
     private array $estadosPermitidos = ["activo", "inactivo"];
+    private ?bool $supportsForcedPasswordChangeColumn = null;
 
     public function __construct() {
         $db = new Database();
@@ -23,6 +24,7 @@ class Usuarios {
 
     public function getAllUsers(): array {
         try {
+            $forcePasswordSelect = $this->forcePasswordSelect('u');
             $sql = "SELECT
                         u.id AS id,
                         u.id AS user_id,
@@ -31,7 +33,8 @@ class Usuarios {
                         u.id_rol,
                         r.rol AS nombre_rol,
                         u.estado,
-                        u.fecha_registro
+                        u.fecha_registro,
+                        {$forcePasswordSelect} AS debe_cambiar_contrasena
                     FROM {$this->table_name} u
                     INNER JOIN roles r ON u.id_rol = r.id
                     ORDER BY u.id DESC";
@@ -64,6 +67,7 @@ class Usuarios {
         }
 
         try {
+            $forcePasswordSelect = $this->forcePasswordSelect('u');
             $sql = "SELECT
                         u.id AS id,
                         u.id AS user_id,
@@ -73,7 +77,8 @@ class Usuarios {
                         u.id_rol,
                         r.rol AS nombre_rol,
                         u.estado,
-                        u.fecha_registro
+                        u.fecha_registro,
+                        {$forcePasswordSelect} AS debe_cambiar_contrasena
                     FROM {$this->table_name} u
                     INNER JOIN roles r ON u.id_rol = r.id
                     WHERE u.id = :id
@@ -93,6 +98,7 @@ class Usuarios {
 
     public function getUserByUsername(string $usuario): ?array {
         try {
+            $forcePasswordSelect = $this->forcePasswordSelect('u');
             $sql = "SELECT
                         u.id AS id,
                         u.id AS user_id,
@@ -102,7 +108,8 @@ class Usuarios {
                         u.id_rol,
                         r.rol AS nombre_rol,
                         u.estado,
-                        u.fecha_registro
+                        u.fecha_registro,
+                        {$forcePasswordSelect} AS debe_cambiar_contrasena
                     FROM {$this->table_name} u
                     INNER JOIN roles r ON u.id_rol = r.id
                     WHERE u.usuario = :usuario
@@ -154,6 +161,12 @@ class Usuarios {
             return null;
         }
 
+        $hashedPassword = password_hash($contrasena, PASSWORD_DEFAULT);
+        if ($hashedPassword === false) {
+            $this->lastError = "No se pudo procesar la contraseña.";
+            return null;
+        }
+
         if ($this->usuarioExists($usuario)) {
             $this->lastError = "El nombre de usuario ya está en uso.";
             return null;
@@ -165,16 +178,23 @@ class Usuarios {
         }
 
         try {
-            $sql = "INSERT INTO {$this->table_name}
-                        (id_rol, usuario, correo, contrasena, estado)
-                    VALUES
-                        (:id_rol, :usuario, :correo, :contrasena, :estado)";
+            if ($this->supportsForcedPasswordChange()) {
+                $sql = "INSERT INTO {$this->table_name}
+                            (id_rol, usuario, correo, contrasena, estado, debe_cambiar_contrasena)
+                        VALUES
+                            (:id_rol, :usuario, :correo, :contrasena, :estado, 0)";
+            } else {
+                $sql = "INSERT INTO {$this->table_name}
+                            (id_rol, usuario, correo, contrasena, estado)
+                        VALUES
+                            (:id_rol, :usuario, :correo, :contrasena, :estado)";
+            }
 
             $stmt = $this->conn->prepare($sql);
             $stmt->bindParam(":id_rol", $idRol, PDO::PARAM_INT);
             $stmt->bindParam(":usuario", $usuario, PDO::PARAM_STR);
             $stmt->bindParam(":correo", $correo, PDO::PARAM_STR);
-            $stmt->bindParam(":contrasena", $contrasena, PDO::PARAM_STR);
+            $stmt->bindParam(":contrasena", $hashedPassword, PDO::PARAM_STR);
             $stmt->bindParam(":estado", $estado, PDO::PARAM_STR);
             $stmt->execute();
 
@@ -204,6 +224,7 @@ class Usuarios {
         $correo = trim($correo);
         $contrasena = $contrasena !== null ? trim($contrasena) : null;
         $estadoNormalizado = $estado !== null ? $this->normalizeEstado($estado) : null;
+        $hashedPassword = null;
 
         if ($idUsuario <= 0) {
             $this->lastError = "ID de usuario inválido.";
@@ -235,6 +256,14 @@ class Usuarios {
             return false;
         }
 
+        if ($contrasena !== null && $contrasena !== "") {
+            $hashedPassword = password_hash($contrasena, PASSWORD_DEFAULT);
+            if ($hashedPassword === false) {
+                $this->lastError = "No se pudo procesar la contraseña.";
+                return false;
+            }
+        }
+
         $user = $this->getUserById($idUsuario);
         if (!$user) {
             $this->lastError = "Usuario no encontrado.";
@@ -247,8 +276,11 @@ class Usuarios {
                 "correo = :correo"
             ];
 
-            if ($contrasena !== null && $contrasena !== "") {
+            if ($hashedPassword !== null) {
                 $fields[] = "contrasena = :contrasena";
+                if ($this->supportsForcedPasswordChange()) {
+                    $fields[] = "debe_cambiar_contrasena = 0";
+                }
             }
 
             if ($idRol !== null) {
@@ -268,8 +300,8 @@ class Usuarios {
             $stmt->bindParam(":usuario", $usuario, PDO::PARAM_STR);
             $stmt->bindParam(":correo", $correo, PDO::PARAM_STR);
 
-            if ($contrasena !== null && $contrasena !== "") {
-                $stmt->bindParam(":contrasena", $contrasena, PDO::PARAM_STR);
+            if ($hashedPassword !== null) {
+                $stmt->bindParam(":contrasena", $hashedPassword, PDO::PARAM_STR);
             }
 
             if ($idRol !== null) {
@@ -398,6 +430,111 @@ class Usuarios {
         }
     }
 
+    public function verifyPassword(string $plainPassword, string $storedPassword): bool {
+        if ($plainPassword === '' || $storedPassword === '') {
+            return false;
+        }
+
+        if ($this->isPasswordHash($storedPassword)) {
+            return password_verify($plainPassword, $storedPassword);
+        }
+
+        return hash_equals($storedPassword, $plainPassword);
+    }
+
+    public function needsPasswordMigration(string $storedPassword): bool {
+        if ($storedPassword === '') {
+            return false;
+        }
+
+        return !$this->isPasswordHash($storedPassword);
+    }
+
+    public function passwordNeedsRehash(string $storedPassword): bool {
+        if (!$this->isPasswordHash($storedPassword)) {
+            return false;
+        }
+
+        return password_needs_rehash($storedPassword, PASSWORD_DEFAULT);
+    }
+
+    public function upgradePasswordHash(int $idUsuario, string $plainPassword): bool {
+        if ($idUsuario <= 0 || $plainPassword === '') {
+            return false;
+        }
+
+        $newHash = password_hash($plainPassword, PASSWORD_DEFAULT);
+        if ($newHash === false) {
+            return false;
+        }
+
+        try {
+            $sql = "UPDATE {$this->table_name}
+                    SET contrasena = :contrasena
+                    WHERE id = :id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':contrasena', $newHash, PDO::PARAM_STR);
+            $stmt->bindParam(':id', $idUsuario, PDO::PARAM_INT);
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            error_log("Error Usuarios::upgradePasswordHash => " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function forceResetPassword(int $idUsuario, ?string $temporaryPassword = null): ?array {
+        $this->lastError = null;
+
+        if ($idUsuario <= 0) {
+            $this->lastError = "ID de usuario inválido.";
+            return null;
+        }
+
+        $user = $this->getUserById($idUsuario);
+        if (!$user) {
+            $this->lastError = "Usuario no encontrado.";
+            return null;
+        }
+
+        $plainPassword = trim((string) ($temporaryPassword ?? ''));
+        if ($plainPassword === '') {
+            $plainPassword = $this->generateTemporaryPassword();
+        }
+
+        $newHash = password_hash($plainPassword, PASSWORD_DEFAULT);
+        if ($newHash === false) {
+            $this->lastError = "No se pudo generar la contraseña temporal.";
+            return null;
+        }
+
+        try {
+            $sql = "UPDATE {$this->table_name}
+                    SET contrasena = :contrasena";
+
+            if ($this->supportsForcedPasswordChange()) {
+                $sql .= ", debe_cambiar_contrasena = 1";
+            }
+
+            $sql .= " WHERE id = :id";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':contrasena', $newHash, PDO::PARAM_STR);
+            $stmt->bindParam(':id', $idUsuario, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return [
+                'id' => (int) ($user['id'] ?? $idUsuario),
+                'usuario' => (string) ($user['usuario'] ?? ''),
+                'temporaryPassword' => $plainPassword,
+                'forceChangeEnabled' => $this->supportsForcedPasswordChange()
+            ];
+        } catch (PDOException $e) {
+            error_log("Error Usuarios::forceResetPassword => " . $e->getMessage());
+            $this->lastError = "No se pudo resetear la contraseña del usuario.";
+            return null;
+        }
+    }
+
     private function rolExists(int $idRol): bool {
         $sql = "SELECT id FROM roles WHERE id = :id LIMIT 1";
         $stmt = $this->conn->prepare($sql);
@@ -444,6 +581,44 @@ class Usuarios {
             return "activo";
         }
         return $estado;
+    }
+
+    private function isPasswordHash(string $passwordValue): bool {
+        $info = password_get_info($passwordValue);
+        return (int) ($info['algo'] ?? 0) !== 0;
+    }
+
+    private function supportsForcedPasswordChange(): bool {
+        if ($this->supportsForcedPasswordChangeColumn !== null) {
+            return $this->supportsForcedPasswordChangeColumn;
+        }
+
+        try {
+            $stmt = $this->conn->query("SHOW COLUMNS FROM {$this->table_name} LIKE 'debe_cambiar_contrasena'");
+            $this->supportsForcedPasswordChangeColumn = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error Usuarios::supportsForcedPasswordChange => " . $e->getMessage());
+            $this->supportsForcedPasswordChangeColumn = false;
+        }
+
+        return $this->supportsForcedPasswordChangeColumn;
+    }
+
+    private function forcePasswordSelect(string $tableAlias = 'u'): string {
+        $alias = preg_replace('/[^a-zA-Z0-9_]/', '', $tableAlias) ?: 'u';
+        return $this->supportsForcedPasswordChange() ? "{$alias}.debe_cambiar_contrasena" : "0";
+    }
+
+    private function generateTemporaryPassword(int $length = 12): string {
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789@#$_-';
+        $maxIndex = strlen($alphabet) - 1;
+        $result = '';
+
+        for ($i = 0; $i < $length; $i++) {
+            $result .= $alphabet[random_int(0, $maxIndex)];
+        }
+
+        return $result;
     }
 }
 

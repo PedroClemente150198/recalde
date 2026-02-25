@@ -5,6 +5,6 @@
     </footer>
 
     -->
-    <script src="<?php BASE_PATH;?>/public/js/dashboardcontrol.js"></script>
+    <script src="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/js/dashboardcontrol.js"></script>
 </body>
 </html>

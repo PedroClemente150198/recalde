@@ -2,12 +2,13 @@
 $info = $info ?? [];
 $resumen = $resumen ?? [];
 $integridad = $integridad ?? [];
+$usuariosCredenciales = $usuariosCredenciales ?? [];
 $rolActual = $rolActual ?? ($info['rolActual'] ?? '-');
 
 $dbStatus = strtolower((string) ($info['dbStatus'] ?? 'error'));
 $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
 ?>
-<link rel="stylesheet" href="/public/css/developer.css">
+<link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/developer.css">
 
 <div class="developer-page" data-developer-panel="1">
     <section class="developer-hero">
@@ -126,11 +127,75 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
             <button class="btn dev-btn ghost" type="button" data-nav-page="historial">Historial</button>
         </div>
     </section>
+
+    <section class="developer-section">
+        <div class="developer-section-head">
+            <h2>Usuarios y Credenciales</h2>
+            <p>Vista técnica del valor almacenado en `usuarios.contrasena`.</p>
+        </div>
+
+        <p class="developer-credentials-note">
+            Si el valor es hash, no puede convertirse a texto plano.
+        </p>
+
+        <div class="developer-table-wrap">
+            <table class="developer-credentials-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuario</th>
+                        <th>Correo</th>
+                        <th>Rol</th>
+                        <th>Estado</th>
+                        <th>Cambio forzado</th>
+                        <th>Contraseña almacenada</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="developer-users-body">
+                    <?php if (!empty($usuariosCredenciales)): ?>
+                        <?php foreach ($usuariosCredenciales as $item): ?>
+                            <tr>
+                                <td>#<?= (int) ($item['id'] ?? 0) ?></td>
+                                <td><?= htmlspecialchars((string) ($item['usuario'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars((string) ($item['correo'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars((string) ($item['nombre_rol'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= htmlspecialchars((string) ($item['estado'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td><?= !empty($item['debe_cambiar_contrasena']) ? 'Sí' : 'No' ?></td>
+                                <td class="mono">
+                                    <?= htmlspecialchars((string) ($item['contrasena'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
+                                    <?php if (!empty($item['password_is_hash'])): ?>
+                                        <small class="developer-hash-label">hash</small>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <button
+                                        class="btn dev-btn secondary developer-reset-btn"
+                                        type="button"
+                                        data-action="developer-reset-password-user"
+                                        data-user-id="<?= (int) ($item['id'] ?? 0) ?>"
+                                        data-username="<?= htmlspecialchars((string) ($item['usuario'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                    >
+                                        Resetear contraseña
+                                    </button>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="8" style="text-align:center;">No hay usuarios para mostrar.</td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
 
 <script id="developer-panel-data" type="application/json"><?= json_encode([
     'info' => $info,
     'resumen' => $resumen,
     'integridad' => $integridad,
+    'usuariosCredenciales' => $usuariosCredenciales,
     'rolActual' => $rolActual
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?></script>

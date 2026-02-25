@@ -1,7 +1,7 @@
 <?php
 $historial = $historial ?? [];
 ?>
-<link rel="stylesheet" href=" <?php BASE_PATH; ?>/public/css/historial.css">
+<link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/historial.css">
 
 <div class="historial-container">
     <h1>Historial de Ventas</h1>

@@ -10,6 +10,7 @@ class Dashboard {
     private PDO $conn;
     private string $table_ventas = 'ventas';
     private string $table_clientes = 'clientes';
+    private ?bool $supportsForcePasswordColumn = null;
 
     public function __construct() {
         $db = new Database();
@@ -292,7 +293,8 @@ class Dashboard {
                     LEFT JOIN historial_ventas h ON h.id_venta = v.id
                     WHERE h.id IS NULL
                 ")
-            ]
+            ],
+            "usuariosCredenciales" => $this->getDeveloperUsersCredentials()
         ];
     }
 
@@ -346,6 +348,57 @@ class Dashboard {
             error_log("Error Dashboard::countScalar => " . $e->getMessage());
             return 0;
         }
+    }
+
+    private function getDeveloperUsersCredentials(): array {
+        try {
+            $forceColumnExpr = $this->supportsForcePasswordColumn()
+                ? "u.debe_cambiar_contrasena"
+                : "0";
+            $sql = "SELECT
+                        u.id,
+                        u.usuario,
+                        u.correo,
+                        u.contrasena,
+                        u.estado,
+                        {$forceColumnExpr} AS debe_cambiar_contrasena,
+                        r.rol AS nombre_rol
+                    FROM usuarios u
+                    INNER JOIN roles r ON r.id = u.id_rol
+                    ORDER BY u.id DESC";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($rows as &$row) {
+                $storedPassword = (string) ($row['contrasena'] ?? '');
+                $info = password_get_info($storedPassword);
+                $row['password_is_hash'] = ((int) ($info['algo'] ?? 0)) !== 0;
+            }
+            unset($row);
+
+            return $rows;
+        } catch (PDOException $e) {
+            error_log("Error Dashboard::getDeveloperUsersCredentials => " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function supportsForcePasswordColumn(): bool {
+        if ($this->supportsForcePasswordColumn !== null) {
+            return $this->supportsForcePasswordColumn;
+        }
+
+        try {
+            $stmt = $this->conn->query("SHOW COLUMNS FROM usuarios LIKE 'debe_cambiar_contrasena'");
+            $this->supportsForcePasswordColumn = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Error Dashboard::supportsForcePasswordColumn => " . $e->getMessage());
+            $this->supportsForcePasswordColumn = false;
+        }
+
+        return $this->supportsForcePasswordColumn;
     }
 
     

@@ -277,6 +277,9 @@ function renderDeveloperPanel(data) {
   const info = payload.info && typeof payload.info === "object" ? payload.info : {};
   const resumen = payload.resumen && typeof payload.resumen === "object" ? payload.resumen : {};
   const integridad = payload.integridad && typeof payload.integridad === "object" ? payload.integridad : {};
+  const usuariosCredenciales = Array.isArray(payload.usuariosCredenciales)
+    ? payload.usuariosCredenciales
+    : [];
 
   setNodeTextValue("#developer-info-app", info.appName ?? "RECALDE");
   setNodeTextValue("#developer-info-version", info.appVersion ?? "1.0.0");
@@ -295,6 +298,57 @@ function renderDeveloperPanel(data) {
   setNodeTextValue("#developer-check-pedidos-sin-detalle", Number(integridad.pedidosSinDetalle ?? 0));
   setNodeTextValue("#developer-check-pedidos-descuadrados", Number(integridad.pedidosTotalesDescuadrados ?? 0));
   setNodeTextValue("#developer-check-ventas-sin-historial", Number(integridad.ventasSinHistorial ?? 0));
+  renderDeveloperUsersCredentials(usuariosCredenciales);
+}
+
+function renderDeveloperUsersCredentials(users) {
+  const tbody = document.querySelector("#developer-users-body");
+  if (!tbody) return;
+
+  const rows = Array.isArray(users) ? users : [];
+  if (rows.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center;">No hay usuarios para mostrar.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((item) => {
+      const passwordStored = String(item.contrasena ?? "");
+      const hashLabel = Boolean(item.password_is_hash)
+        ? '<small class="developer-hash-label">hash</small>'
+        : "";
+      const mustChange = Number(item.debe_cambiar_contrasena ?? 0) === 1;
+      const userId = Number(item.id ?? 0);
+      const username = String(item.usuario ?? "");
+
+      return `
+        <tr>
+          <td>#${escapeHtml(item.id ?? 0)}</td>
+          <td>${escapeHtml(item.usuario ?? "-")}</td>
+          <td>${escapeHtml(item.correo ?? "-")}</td>
+          <td>${escapeHtml(item.nombre_rol ?? "-")}</td>
+          <td>${escapeHtml(item.estado ?? "-")}</td>
+          <td>${mustChange ? "Si" : "No"}</td>
+          <td class="mono">${escapeHtml(passwordStored)} ${hashLabel}</td>
+          <td>
+            <button
+              class="btn dev-btn secondary developer-reset-btn"
+              type="button"
+              data-action="developer-reset-password-user"
+              data-user-id="${escapeHtml(userId)}"
+              data-username="${escapeHtml(username)}"
+            >
+              Resetear contraseña
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
 }
 
 async function requestDeveloperData() {
@@ -312,9 +366,15 @@ async function requestDeveloperData() {
   return data.data || {};
 }
 
-async function requestDeveloperAction(action) {
+async function requestDeveloperAction(action, payload = {}) {
   const params = new URLSearchParams();
   params.append("action", String(action ?? ""));
+  if (payload && typeof payload === "object") {
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
+      params.append(String(key), String(value));
+    });
+  }
 
   const response = await fetch("?route=developer-action", {
     method: "POST",
@@ -2591,6 +2651,49 @@ if (content) {
       } finally {
         developerRecalculateBtn.disabled = false;
         developerRecalculateBtn.textContent = originalLabel;
+      }
+      return;
+    }
+
+    const developerResetPasswordBtn = e.target.closest('[data-action="developer-reset-password-user"]');
+    if (developerResetPasswordBtn) {
+      const idUsuario = Number(developerResetPasswordBtn.dataset.userId ?? 0);
+      const username = String(developerResetPasswordBtn.dataset.username ?? "").trim() || "este usuario";
+
+      if (!Number.isFinite(idUsuario) || idUsuario <= 0) {
+        setDeveloperFeedback("Usuario inválido para resetear contraseña.", "error");
+        return;
+      }
+
+      const confirmed = window.confirm(`Se generará una contraseña temporal para ${username}. ¿Deseas continuar?`);
+      if (!confirmed) return;
+
+      const originalLabel = developerResetPasswordBtn.textContent;
+      developerResetPasswordBtn.disabled = true;
+      developerResetPasswordBtn.textContent = "Procesando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("resetear-contrasena-usuario", {
+          id_usuario: idUsuario
+        });
+
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+
+        const temporaryPassword = String(result.temporary_password ?? "").trim();
+        const feedbackMessage = result.message || "Contraseña temporal generada.";
+        setDeveloperFeedback(feedbackMessage, "success");
+
+        if (temporaryPassword) {
+          window.alert(`Nueva contraseña temporal para ${username}: ${temporaryPassword}`);
+        }
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerResetPasswordBtn.disabled = false;
+        developerResetPasswordBtn.textContent = originalLabel;
       }
       return;
     }

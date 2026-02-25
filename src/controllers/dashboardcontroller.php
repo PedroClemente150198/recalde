@@ -132,6 +132,51 @@ class DashboardController extends Controller{
                     'data' => $data
                 ], JSON_UNESCAPED_UNICODE);
                 return;
+
+            case 'resetear-contrasena-usuario':
+                $idUsuario = filter_input(INPUT_POST, 'id_usuario', FILTER_VALIDATE_INT);
+                if (!$idUsuario) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Usuario inválido para resetear contraseña.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $usuariosModel = new Usuarios();
+                $result = $usuariosModel->forceResetPassword((int) $idUsuario);
+                if (!$result) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => $usuariosModel->getLastError() ?? 'No se pudo resetear la contraseña.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $data = $dashboardModel->getDeveloperOverview();
+                $data['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+
+                $message = sprintf(
+                    "Contraseña temporal de %s: %s",
+                    (string) ($result['usuario'] ?? 'usuario'),
+                    (string) ($result['temporaryPassword'] ?? '')
+                );
+
+                if (empty($result['forceChangeEnabled'])) {
+                    $message .= '. Aviso: tu esquema actual no soporta forzar cambio al próximo login.';
+                }
+
+                echo json_encode([
+                    'ok' => true,
+                    'message' => $message,
+                    'temporary_password' => (string) ($result['temporaryPassword'] ?? ''),
+                    'target_user' => (string) ($result['usuario'] ?? ''),
+                    'force_change_enabled' => (bool) ($result['forceChangeEnabled'] ?? false),
+                    'data' => $data
+                ], JSON_UNESCAPED_UNICODE);
+                return;
         }
 
         http_response_code(400);
@@ -477,6 +522,7 @@ class DashboardController extends Controller{
         $correo = trim((string) ($_POST['correo'] ?? ''));
         $contrasenaRaw = trim((string) ($_POST['contrasena'] ?? ''));
         $contrasena = $contrasenaRaw === '' ? null : $contrasenaRaw;
+        $mustChangePassword = (int) ($_SESSION['usuario']['debe_cambiar_contrasena'] ?? 0) === 1;
 
         $idRolRaw = filter_input(INPUT_POST, 'id_rol', FILTER_VALIDATE_INT);
         $estadoRaw = strtolower(trim((string) ($_POST['estado'] ?? '')));
@@ -522,6 +568,15 @@ class DashboardController extends Controller{
                 ], JSON_UNESCAPED_UNICODE);
                 return;
             }
+        }
+
+        if ($idObjetivo === $idSesion && $mustChangePassword && ($contrasena === null || $contrasena === '')) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Debes establecer una nueva contraseña para continuar.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
         }
 
         $actualizado = $usuariosModel->updateUser(

@@ -44,12 +44,20 @@ class LoginController extends Controller {
             }
             
             // verificar la contraseña
-            if(!($password === $user['contrasena'])) {
+            $storedPassword = (string) ($user['contrasena'] ?? '');
+            if (!$usuariosModel->verifyPassword($password, $storedPassword)) {
                 // Manejar contraseña incorrecta
                 $this->render('login/index', ['error' => 'Contraseña incorrecta']);
                 return;
             }
 
+            $userId = (int) ($user['user_id'] ?? $user['id'] ?? 0);
+            if ($userId > 0 && (
+                $usuariosModel->needsPasswordMigration($storedPassword) ||
+                $usuariosModel->passwordNeedsRehash($storedPassword)
+            )) {
+                $usuariosModel->upgradePasswordHash($userId, $password);
+            }
 
             /*$_SESSION['usuario']=[
                 'id' => $user['id'],
@@ -69,11 +77,11 @@ class LoginController extends Controller {
             //header('Location: /dashboard');
             
             // Por simplicidad, asumimos que la autenticación es exitosa
-            $this->redirect('/dashboard');
+            $this->redirect('?route=dashboard');
             return;
         } else {
             // Si no es una solicitud POST, redirigir al formulario de login
-            $this->redirect('login');
+            $this->redirect('?route=login');
         }
     }
 }

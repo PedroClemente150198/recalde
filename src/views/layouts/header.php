@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href=" <?php BASE_PATH; ?>/public/css/dashboard.css">
+    <link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <title>RECALDE</title>
 </head>
@@ -11,6 +11,7 @@
     <?php
       $rolSesion = strtolower(trim((string) ($_SESSION['usuario']['nombre_rol'] ?? '')));
       $isDeveloperRole = in_array($rolSesion, ['desarrollador', 'developer'], true);
+      $baseUrlEsc = htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8');
     ?>
     <header>
 
@@ -31,7 +32,7 @@
             </li>
             <!-- List of navigation items -->
             <li>
-              <a href="/home" data-page="home">
+              <a href="<?= $baseUrlEsc ?>/?route=home" data-page="home">
                 <i class='bx bx-grid-alt'></i>
                 <span class="links_name">Sistema</span>
               </a>
@@ -39,42 +40,42 @@
             </li>
             <!-- Additional navigation items -->
             <li>
-              <a href="/perfil" data-page="perfil">
+              <a href="<?= $baseUrlEsc ?>/?route=perfil" data-page="perfil">
                 <i class='bx bx-user'></i>
                 <span class="links_name">Perfil</span>
               </a>
               <span class="tooltip">Perfil</span>
             </li>
             <li>
-              <a href="/clientes" data-page="clientes">
+              <a href="<?= $baseUrlEsc ?>/?route=clientes" data-page="clientes">
                 <i class='bx bx-user-plus'></i>
                 <span class="links_name">Clientes</span>
               </a>
               <span class="tooltip">Clientes</span>
             </li>
             <li>
-              <a href="/pedidos" data-page="pedidos">
+              <a href="<?= $baseUrlEsc ?>/?route=pedidos" data-page="pedidos">
                 <i class='bx bx-chat'></i>
                 <span class="links_name">N° Pedidos</span>
               </a>
               <span class="tooltip">N° Pedidos</span>
             </li>
             <li>
-              <a href="/historial" data-page="historial">
+              <a href="<?= $baseUrlEsc ?>/?route=historial" data-page="historial">
                 <i class='bx bx-pie-chart-alt-2'></i>
                 <span class="links_name">Historial</span>
               </a>
               <span class="tooltip">Historial</span>
             </li>
             <li>
-              <a href="/inventario" data-page="inventario">
+              <a href="<?= $baseUrlEsc ?>/?route=inventario" data-page="inventario">
                 <i class='bx bx-folder'></i>
                 <span class="links_name">Inventario</span>
               </a>
               <span class="tooltip">Inventario</span>
             </li>
             <li>
-              <a href="/ventas" data-page="ventas">
+              <a href="<?= $baseUrlEsc ?>/?route=ventas" data-page="ventas">
                 <i class='bx bx-cart-alt'></i>
                 <span class="links_name">Ventas</span>
               </a>
@@ -90,7 +91,7 @@
             </li>
             -->
             <li>
-              <a href="/configuracion" data-page="configuracion">
+              <a href="<?= $baseUrlEsc ?>/?route=configuracion" data-page="configuracion">
                 <i class='bx bx-cog'></i>
                 <span class="links_name">Configuraciones</span>
               </a>
@@ -98,7 +99,7 @@
             </li>
             <?php if ($isDeveloperRole): ?>
             <li>
-              <a href="/developer" data-page="developer">
+              <a href="<?= $baseUrlEsc ?>/?route=developer" data-page="developer">
                 <i class='bx bx-code-alt'></i>
                 <span class="links_name">Developer</span>
               </a>

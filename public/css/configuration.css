@@ -1,0 +1,77 @@
+:root {
+    --config-bg: rgba(9, 27, 44, 0.9);
+    --config-border: rgba(101, 176, 224, 0.25);
+    --config-title: #eaf7ff;
+    --config-text: #b8dff6;
+}
+
+.configuration-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px;
+    color: var(--config-text);
+}
+
+.configuration-hero {
+    margin-bottom: 14px;
+}
+
+.configuration-hero h1 {
+    margin: 0 0 6px;
+    color: var(--config-title);
+}
+
+.configuration-hero p {
+    margin: 0;
+}
+
+.configuration-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.configuration-card {
+    border: 1px solid var(--config-border);
+    border-radius: 14px;
+    background: var(--config-bg);
+    padding: 14px;
+}
+
+.configuration-card h2 {
+    margin: 0 0 10px;
+    color: var(--config-title);
+    font-size: 1.05rem;
+}
+
+.configuration-card ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.configuration-card li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid rgba(101, 176, 224, 0.12);
+    padding-bottom: 6px;
+}
+
+.configuration-card li span {
+    opacity: 0.86;
+}
+
+.configuration-card li strong {
+    color: var(--config-title);
+    text-align: right;
+}
+
+.configuration-note {
+    margin: 10px 0 0;
+    font-size: 0.86rem;
+    opacity: 0.9;
+}

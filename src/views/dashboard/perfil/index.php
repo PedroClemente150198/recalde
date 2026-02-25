@@ -8,7 +8,7 @@ $roles = $roles ?? [];
 $idUsuarioActual = (int) ($usuario['user_id'] ?? $usuario['id'] ?? 0);
 $estadoActual = strtolower((string) ($usuario['estado'] ?? 'activo'));
 ?>
-<link rel="stylesheet" href=" <?php BASE_PATH; ?>/public/css/perfil.css">
+<link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/perfil.css">
 
 <div class="perfil-page">
     <section class="perfil-card">

@@ -55,7 +55,7 @@ $entregado = (int) ($estadoPedidos['entregado'] ?? 0);
 $cancelado = (int) ($estadoPedidos['cancelado'] ?? 0);
 $activos = $pendiente + $procesando + $listo;
 ?>
-<link rel="stylesheet" href=" <?php BASE_PATH; ?>/public/css/home.css">
+<link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/home.css">
 
 <div class="home-dashboard" data-home-dashboard="1">
     <section class="home-hero">
