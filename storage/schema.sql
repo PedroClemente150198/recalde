@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS productos (
     nombre_producto VARCHAR(120) NOT NULL,
     descripcion TEXT NULL,
     precio_base DECIMAL(12,2) NOT NULL,
+    stock_actual INT UNSIGNED NOT NULL DEFAULT 0,
+    stock_minimo INT UNSIGNED NOT NULL DEFAULT 5,
     estado VARCHAR(20) NOT NULL DEFAULT 'activo',
     fecha_actualizacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_productos_nombre (nombre_producto),
@@ -95,6 +97,21 @@ CREATE TABLE IF NOT EXISTS detalle_pedidos (
         FOREIGN KEY (id_producto) REFERENCES productos (id)
         ON UPDATE CASCADE
         ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS detalle_pedido_medidas (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id_detalle_pedido INT UNSIGNED NOT NULL,
+    nombre_persona VARCHAR(120) NOT NULL,
+    referencia VARCHAR(120) NULL,
+    cantidad INT UNSIGNED NOT NULL DEFAULT 1,
+    medidas TEXT NULL,
+    fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_detalle_pedido_medidas_detalle (id_detalle_pedido),
+    CONSTRAINT fk_detalle_pedido_medidas_detalle
+        FOREIGN KEY (id_detalle_pedido) REFERENCES detalle_pedidos (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS opciones_personalizacion (
@@ -140,6 +157,27 @@ CREATE TABLE IF NOT EXISTS ventas (
         ON UPDATE CASCADE
         ON DELETE RESTRICT,
     CONSTRAINT fk_ventas_usuario
+        FOREIGN KEY (usuario_registro) REFERENCES usuarios (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS abonos_ventas (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id_venta INT UNSIGNED NOT NULL,
+    monto DECIMAL(12,2) NOT NULL,
+    metodo_pago VARCHAR(30) NOT NULL DEFAULT 'efectivo',
+    observacion VARCHAR(255) NULL,
+    fecha_abono TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    usuario_registro INT UNSIGNED NULL,
+    INDEX idx_abonos_venta (id_venta),
+    INDEX idx_abonos_fecha (fecha_abono),
+    INDEX idx_abonos_usuario (usuario_registro),
+    CONSTRAINT fk_abonos_ventas_venta
+        FOREIGN KEY (id_venta) REFERENCES ventas (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_abonos_ventas_usuario
         FOREIGN KEY (usuario_registro) REFERENCES usuarios (id)
         ON UPDATE CASCADE
         ON DELETE SET NULL

@@ -36,7 +36,7 @@ if (!in_array($route, $publicRoutes, true)) {
         if (!in_array($route, $allowedDuringPasswordChange, true)) {
             $expectsJson = $_SERVER['REQUEST_METHOD'] !== 'GET'
                 || str_ends_with($route, '-data')
-                || in_array($route, ['pedido-detalle', 'historial-detalle', 'home-data', 'developer-data'], true);
+                || in_array($route, ['pedido-detalle', 'venta-detalle', 'historial-detalle', 'home-data', 'developer-data', 'dashboard-ui-data'], true);
 
             if ($expectsJson) {
                 header('Content-Type: application/json; charset=UTF-8');
@@ -123,6 +123,26 @@ switch($route) {
         }
         $controller = new DashboardController();
         $controller->ventaActualizar();
+        break;
+
+    case 'venta-detalle':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->ventaDetalle();
+        break;
+
+    case 'venta-abono-crear':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->ventaAbonoCrear();
         break;
 
     case 'venta-eliminar':
@@ -253,6 +273,16 @@ switch($route) {
         }
         $controller = new DashboardController();
         $controller->pedidoActualizar();
+        break;
+
+    case 'pedido-eliminar':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->pedidoEliminar();
         break;
     
     case 'historial':
@@ -393,6 +423,16 @@ switch($route) {
         }
         $controller = new DashboardController();
         $controller->developerAction();
+        break;
+
+    case 'dashboard-ui-data':
+        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (!isset($_SESSION['usuario'])) {
+            header("Location: ?route=login");
+            exit();
+        }
+        $controller = new DashboardController();
+        $controller->dashboardUiData();
         break;
 
     case 'home':

@@ -13,6 +13,17 @@ const homeDashboardState = {
   isFetching: false,
   ingresosPeriodo: "mes"
 };
+const developerPanelState = {
+  payload: null,
+  selectedTable: "",
+  editPrimaryKey: null
+};
+const sharedUiPreferencesState = {
+  intervalId: null,
+  isFetching: false,
+  lastSyncedAt: 0
+};
+const SHARED_UI_SYNC_INTERVAL_MS = 8000;
 const TABLE_PAGE_SIZE = 5;
 let tablePaginationSequence = 0;
 
@@ -49,12 +60,69 @@ async function bootRouteModules(page) {
   if (isHomeRoute) {
     await initHomeDashboardRealtime();
     initTablePagination(content);
+    initClientesModule(content);
+    initSharedUiPreferencesSync();
     return;
   }
 
   destroyHomeDashboardRealtime();
   initTablePagination(content);
+  initClientesModule(content);
   await initDeveloperPanel();
+  initSharedUiPreferencesSync();
+}
+
+function normalizeClientesSearchText(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function initClientesModule(scope = content || document) {
+  const root = scope instanceof Element || scope instanceof Document ? scope : document;
+  const searchInput = root.querySelector("#clientes-search");
+  const summaryNode = root.querySelector("#clientes-filter-summary");
+  const emptyNode = root.querySelector("#clientes-filter-empty");
+  const rows = [...root.querySelectorAll("#clientes-table-body > tr[data-clientes-search]")];
+
+  if (!searchInput || rows.length === 0) {
+    if (emptyNode) {
+      emptyNode.hidden = true;
+    }
+    return;
+  }
+
+  const totalRows = rows.length;
+
+  const renderFilter = () => {
+    const term = normalizeClientesSearchText(searchInput.value);
+    let visibleRows = 0;
+
+    rows.forEach((row) => {
+      const rowText = normalizeClientesSearchText(row.dataset.clientesSearch ?? "");
+      const matches = term === "" || rowText.includes(term);
+
+      row.hidden = !matches;
+      if (matches) {
+        visibleRows += 1;
+      }
+    });
+
+    if (summaryNode) {
+      summaryNode.textContent = term === ""
+        ? `Mostrando ${totalRows} clientes`
+        : `${visibleRows} de ${totalRows} clientes coinciden`;
+    }
+
+    if (emptyNode) {
+      emptyNode.hidden = visibleRows > 0;
+    }
+  };
+
+  searchInput.addEventListener("input", renderFilter);
+  renderFilter();
 }
 
 function getTablePaginationId(table) {
@@ -237,6 +305,18 @@ function getDeveloperPanelInitialData() {
   }
 }
 
+function encodeDeveloperPayload(value) {
+  return encodeURIComponent(JSON.stringify(value ?? {}));
+}
+
+function decodeDeveloperPayload(value) {
+  try {
+    return JSON.parse(decodeURIComponent(String(value ?? "")));
+  } catch (error) {
+    return null;
+  }
+}
+
 function setDeveloperFeedback(message, type = "error") {
   const feedback = document.querySelector("#developer-feedback");
   if (!feedback) return;
@@ -260,6 +340,23 @@ function setNodeTextValue(selector, value) {
   node.textContent = String(value ?? "-");
 }
 
+function setDeveloperEditFeedback(message, type = "error") {
+  const feedback = document.querySelector("#developer-row-edit-feedback");
+  if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
+
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.classList.remove("error", "success");
+  feedback.classList.add(type);
+}
+
 function updateDeveloperDbStatus(statusValue) {
   const node = document.querySelector("#developer-db-status");
   if (!node) return;
@@ -272,14 +369,535 @@ function updateDeveloperDbStatus(statusValue) {
   node.textContent = isOk ? "Conectada" : "Error";
 }
 
+function normalizeDeveloperPayload(data) {
+  return data && typeof data === "object" ? data : {};
+}
+
+function getDeveloperCurrentTableManager() {
+  const payload = normalizeDeveloperPayload(developerPanelState.payload);
+  const tableManager = payload.tableManager && typeof payload.tableManager === "object"
+    ? payload.tableManager
+    : {};
+
+  return tableManager;
+}
+
+function getDeveloperSelectedTable() {
+  const tableManager = getDeveloperCurrentTableManager();
+  const selected = String(tableManager.selectedTable ?? developerPanelState.selectedTable ?? "").trim();
+  return selected;
+}
+
+function getDeveloperSelectedTableInfo(tables, tableName) {
+  const catalog = Array.isArray(tables) ? tables : [];
+  return catalog.find((item) => String(item.table ?? "") === String(tableName ?? "").trim()) || null;
+}
+
+function formatDeveloperValue(value) {
+  if (value === null || value === undefined) {
+    return '<span class="developer-null">NULL</span>';
+  }
+
+  if (value === "") {
+    return '<span class="developer-empty-string">(vacio)</span>';
+  }
+
+  return escapeHtml(value);
+}
+
+function renderDeveloperTableCatalog(tables, selectedTable) {
+  const node = document.querySelector("#developer-table-catalog");
+  if (!node) return;
+
+  const rows = Array.isArray(tables) ? tables : [];
+  if (rows.length === 0) {
+    node.innerHTML = '<p class="developer-empty-state">No hay tablas disponibles.</p>';
+    return;
+  }
+
+  node.innerHTML = rows
+    .map((item) => {
+      const tableName = String(item.table ?? "").trim();
+      const isActive = tableName === selectedTable;
+      const rowCount = Number(item.rowCount ?? 0);
+      const columnCount = Number(item.columnCount ?? 0);
+
+      return `
+        <button
+          type="button"
+          class="developer-table-chip ${isActive ? "is-active" : ""}"
+          data-action="developer-select-table"
+          data-table="${escapeHtml(tableName)}"
+        >
+          <strong>${escapeHtml(tableName)}</strong>
+          <span>${escapeHtml(rowCount)} registros</span>
+          <small>${escapeHtml(columnCount)} columnas</small>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function renderDeveloperTableSelector(tables, selectedTable) {
+  const select = document.querySelector("#developer-table-select");
+  if (!select) return;
+
+  const rows = Array.isArray(tables) ? tables : [];
+  select.innerHTML = rows
+    .map((item) => {
+      const tableName = String(item.table ?? "").trim();
+      const isSelected = tableName === selectedTable;
+      return `
+        <option value="${escapeHtml(tableName)}" ${isSelected ? "selected" : ""}>
+          ${escapeHtml(tableName)}
+        </option>
+      `;
+    })
+    .join("");
+
+  select.value = selectedTable;
+}
+
+function renderDeveloperTableSummary(tableManager, tableInfo) {
+  const columns = Array.isArray(tableManager.columns) ? tableManager.columns : [];
+  const primaryKey = Array.isArray(tableManager.primaryKey) ? tableManager.primaryKey : [];
+
+  setNodeTextValue("#developer-table-row-count", Number(tableInfo?.rowCount ?? 0));
+  setNodeTextValue("#developer-table-column-count", columns.length);
+  setNodeTextValue("#developer-table-primary-key", primaryKey.length > 0 ? primaryKey.join(", ") : "-");
+  setNodeTextValue("#developer-table-limit", Number(tableManager.limit ?? 25));
+
+  const clearBtn = document.querySelector('[data-action="developer-clear-table"]');
+  if (clearBtn) {
+    const canClear = Boolean(tableInfo?.supportsBulkClear);
+    clearBtn.disabled = !canClear || !String(tableManager.selectedTable ?? "").trim();
+    clearBtn.title = canClear
+      ? "Eliminar todos los registros visibles de esta tabla"
+      : "Esta tabla no puede vaciarse completa desde el panel";
+  }
+}
+
+function renderDeveloperTableRows(tableManager) {
+  const head = document.querySelector("#developer-records-head");
+  const body = document.querySelector("#developer-records-body");
+  if (!head || !body) return;
+
+  const columns = Array.isArray(tableManager.columns) ? tableManager.columns : [];
+  const rows = Array.isArray(tableManager.rows) ? tableManager.rows : [];
+  const primaryKey = Array.isArray(tableManager.primaryKey) ? tableManager.primaryKey : [];
+  const editableColumns = columns.filter((column) => Boolean(column.is_editable));
+  const canMutateRows = primaryKey.length > 0;
+
+  if (columns.length === 0) {
+    head.innerHTML = "";
+    body.innerHTML = `
+      <tr>
+        <td colspan="2" style="text-align:center;">La tabla seleccionada no tiene columnas disponibles.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  head.innerHTML = `
+    <tr>
+      ${columns.map((column) => `<th>${escapeHtml(column.name ?? "-")}</th>`).join("")}
+      <th>Acciones</th>
+    </tr>
+  `;
+
+  if (rows.length === 0) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="${columns.length + 1}" style="text-align:center;">No hay registros para mostrar.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  body.innerHTML = rows
+    .map((row) => {
+      const primaryPayload = {};
+      primaryKey.forEach((columnName) => {
+        primaryPayload[columnName] = row?.[columnName] ?? null;
+      });
+      const encodedPrimaryKey = encodeDeveloperPayload(primaryPayload);
+
+      return `
+        <tr>
+          ${columns.map((column) => {
+            const value = row?.[column.name ?? ""];
+            const extraClass = value === null || value === undefined ? " developer-cell-null" : "";
+            return `<td class="developer-record-cell${extraClass}">${formatDeveloperValue(value)}</td>`;
+          }).join("")}
+          <td class="developer-record-actions">
+            <button
+              class="btn dev-btn secondary developer-row-btn"
+              type="button"
+              data-action="developer-edit-row"
+              data-primary-key="${encodedPrimaryKey}"
+              ${canMutateRows && editableColumns.length > 0 ? "" : "disabled"}
+            >
+              Editar
+            </button>
+            <button
+              class="btn dev-btn danger subtle developer-row-btn"
+              type="button"
+              data-action="developer-delete-row"
+              data-primary-key="${encodedPrimaryKey}"
+              ${canMutateRows ? "" : "disabled"}
+            >
+              Eliminar
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function renderDeveloperUiPreferences(preferences) {
+  const uiPreferences = preferences && typeof preferences === "object" ? preferences : {};
+  const showVentasActionsColumn = uiPreferences.ventasShowActionsColumn !== false;
+  const showHistorialActionsColumn = uiPreferences.historialShowActionsColumn !== false;
+  const syncToggle = (config) => {
+    const stateNode = document.querySelector(config.stateSelector);
+    const copyNode = document.querySelector(config.copySelector);
+    const toggleBtn = document.querySelector(config.buttonSelector);
+
+    if (stateNode) {
+      stateNode.textContent = config.enabled ? "Visible" : "Oculta";
+    }
+
+    if (copyNode) {
+      copyNode.textContent = config.enabled
+        ? config.visibleCopy
+        : config.hiddenCopy;
+    }
+
+    if (!toggleBtn) return;
+
+    toggleBtn.dataset.enabled = config.enabled ? "1" : "0";
+    toggleBtn.textContent = config.enabled ? "Ocultar columna" : "Mostrar columna";
+    toggleBtn.classList.remove("primary", "secondary", "danger", "subtle");
+
+    if (config.enabled) {
+      toggleBtn.classList.add("danger", "subtle");
+      return;
+    }
+
+    toggleBtn.classList.add("primary");
+  };
+
+  syncToggle({
+    enabled: showVentasActionsColumn,
+    stateSelector: "#developer-ui-ventas-actions-state",
+    copySelector: "#developer-ui-ventas-actions-copy",
+    buttonSelector: '[data-action="developer-toggle-ventas-actions-column"]',
+    visibleCopy: "La columna de acciones se muestra en el listado principal de ventas para todos los roles.",
+    hiddenCopy: "La columna de acciones está oculta globalmente; la gestión sigue disponible al hacer clic en la fila."
+  });
+
+  syncToggle({
+    enabled: showHistorialActionsColumn,
+    stateSelector: "#developer-ui-historial-actions-state",
+    copySelector: "#developer-ui-historial-actions-copy",
+    buttonSelector: '[data-action="developer-toggle-historial-actions-column"]',
+    visibleCopy: "La columna de acciones se muestra en el listado principal del historial para todos los roles.",
+    hiddenCopy: "La columna de acciones está oculta globalmente; la gestión sigue disponible al hacer clic en la fila."
+  });
+}
+
+function getSharedUiPreferencesTargets(scope = content || document) {
+  const root = scope instanceof Element || scope instanceof Document ? scope : document;
+  return {
+    root,
+    ventasPanel: root.querySelector('[data-shared-ui-scope="ventas"]'),
+    historialPanel: root.querySelector('[data-shared-ui-scope="historial"]'),
+    developerPanel: root.querySelector('[data-developer-panel="1"]')
+  };
+}
+
+function hasSharedUiPreferencesTargets(scope = content || document) {
+  const targets = getSharedUiPreferencesTargets(scope);
+  return Boolean(targets.ventasPanel || targets.historialPanel || targets.developerPanel);
+}
+
+function applySharedUiPreferences(preferences, scope = content || document) {
+  const uiPreferences = preferences && typeof preferences === "object" ? preferences : {};
+  const targets = getSharedUiPreferencesTargets(scope);
+  const showVentasActionsColumn = uiPreferences.ventasShowActionsColumn !== false;
+  const showHistorialActionsColumn = uiPreferences.historialShowActionsColumn !== false;
+
+  if (targets.ventasPanel) {
+    targets.ventasPanel.classList.toggle("ventas-actions-hidden", !showVentasActionsColumn);
+  }
+
+  if (targets.historialPanel) {
+    targets.historialPanel.classList.toggle("historial-actions-hidden", !showHistorialActionsColumn);
+  }
+
+  if (targets.developerPanel) {
+    renderDeveloperUiPreferences(uiPreferences);
+  }
+}
+
+async function requestDashboardUiData() {
+  const response = await fetch("?route=dashboard-ui-data");
+  const result = await response.json();
+
+  if (!response.ok || !result?.ok) {
+    throw new Error(result?.message ?? "No se pudo sincronizar la UI compartida.");
+  }
+
+  return result.data && typeof result.data === "object" ? result.data : {};
+}
+
+async function syncSharedUiPreferences(force = false) {
+  if (!hasSharedUiPreferencesTargets()) {
+    stopSharedUiPreferencesSync();
+    return;
+  }
+
+  if (sharedUiPreferencesState.isFetching) {
+    return;
+  }
+
+  const now = Date.now();
+  if (!force && sharedUiPreferencesState.lastSyncedAt > 0) {
+    const elapsed = now - sharedUiPreferencesState.lastSyncedAt;
+    if (elapsed < 1500) {
+      return;
+    }
+  }
+
+  sharedUiPreferencesState.isFetching = true;
+  try {
+    const preferences = await requestDashboardUiData();
+    applySharedUiPreferences(preferences);
+    sharedUiPreferencesState.lastSyncedAt = Date.now();
+  } catch (error) {
+    console.error(error);
+  } finally {
+    sharedUiPreferencesState.isFetching = false;
+  }
+}
+
+function stopSharedUiPreferencesSync() {
+  if (sharedUiPreferencesState.intervalId) {
+    window.clearInterval(sharedUiPreferencesState.intervalId);
+    sharedUiPreferencesState.intervalId = null;
+  }
+}
+
+function initSharedUiPreferencesSync() {
+  stopSharedUiPreferencesSync();
+
+  if (!hasSharedUiPreferencesTargets()) {
+    return;
+  }
+
+  syncSharedUiPreferences(true);
+
+  sharedUiPreferencesState.intervalId = window.setInterval(() => {
+    if (!hasSharedUiPreferencesTargets()) {
+      stopSharedUiPreferencesSync();
+      return;
+    }
+
+    syncSharedUiPreferences();
+  }, SHARED_UI_SYNC_INTERVAL_MS);
+}
+
+function renderDeveloperPrimarySummary(primaryKey) {
+  const node = document.querySelector("#developer-row-edit-primary");
+  if (!node) return;
+
+  const payload = primaryKey && typeof primaryKey === "object" ? primaryKey : {};
+  const entries = Object.entries(payload);
+  if (entries.length === 0) {
+    node.innerHTML = '<span class="developer-empty-state">Sin clave primaria</span>';
+    return;
+  }
+
+  node.innerHTML = entries
+    .map(([key, value]) => `
+      <span class="developer-primary-badge">
+        ${escapeHtml(key)} = ${escapeHtml(value ?? "NULL")}
+      </span>
+    `)
+    .join("");
+}
+
+function getDeveloperInputType(column) {
+  const dataType = String(column?.data_type ?? "").toLowerCase().trim();
+  if (["tinyint", "smallint", "mediumint", "int", "bigint", "decimal", "float", "double"].includes(dataType)) {
+    return "number";
+  }
+  if (dataType === "date") {
+    return "date";
+  }
+  if (["datetime", "timestamp"].includes(dataType)) {
+    return "datetime-local";
+  }
+  if (dataType === "time") {
+    return "time";
+  }
+  return "text";
+}
+
+function getDeveloperInputValue(column, value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  const inputType = getDeveloperInputType(column);
+  const rawValue = String(value);
+  if (inputType === "datetime-local") {
+    return rawValue.replace(" ", "T").slice(0, 19);
+  }
+
+  return rawValue;
+}
+
+function normalizeDeveloperFieldOutput(column, value) {
+  const inputType = getDeveloperInputType(column);
+  if (inputType === "datetime-local") {
+    return value ? String(value).replace("T", " ") : "";
+  }
+  return value;
+}
+
+function renderDeveloperEditFields(row) {
+  const node = document.querySelector("#developer-row-edit-fields");
+  if (!node) return;
+
+  const tableManager = getDeveloperCurrentTableManager();
+  const columns = Array.isArray(tableManager.columns) ? tableManager.columns : [];
+  const editableColumns = columns.filter((column) => Boolean(column.is_editable));
+
+  if (editableColumns.length === 0) {
+    node.innerHTML = '<p class="developer-empty-state">Esta tabla no tiene columnas editables desde el panel.</p>';
+    return;
+  }
+
+  node.innerHTML = editableColumns
+    .map((column) => {
+      const columnName = String(column.name ?? "").trim();
+      const value = getDeveloperInputValue(column, row?.[columnName]);
+      const inputType = getDeveloperInputType(column);
+      const defaultValue = column.default === null || column.default === undefined
+        ? ""
+        : String(column.default);
+      const nullableText = column.is_nullable ? "Permite NULL" : "Obligatorio";
+      const hint = `${column.column_type || inputType} · ${nullableText}`;
+
+      if (["text", "mediumtext", "longtext", "tinytext"].includes(String(column.data_type ?? "").toLowerCase().trim())) {
+        return `
+          <div class="developer-form-field">
+            <label for="developer-field-${escapeHtml(columnName)}">
+              ${escapeHtml(columnName)}
+              <small>${escapeHtml(hint)}</small>
+            </label>
+            <textarea
+              id="developer-field-${escapeHtml(columnName)}"
+              name="${escapeHtml(columnName)}"
+              rows="4"
+              placeholder="${column.is_nullable ? "Deja vacio para NULL" : `Default: ${escapeHtml(defaultValue || "-")}`}"
+            >${escapeHtml(value)}</textarea>
+          </div>
+        `;
+      }
+
+      const step = inputType === "number" ? "step=\"any\"" : "";
+      return `
+        <div class="developer-form-field">
+          <label for="developer-field-${escapeHtml(columnName)}">
+            ${escapeHtml(columnName)}
+            <small>${escapeHtml(hint)}</small>
+          </label>
+          <input
+            id="developer-field-${escapeHtml(columnName)}"
+            name="${escapeHtml(columnName)}"
+            type="${escapeHtml(inputType)}"
+            value="${escapeHtml(value)}"
+            ${step}
+            placeholder="${column.is_nullable ? "Deja vacio para NULL" : `Default: ${escapeHtml(defaultValue || "-")}`}"
+          >
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function openDeveloperEditModal(primaryKey) {
+  const tableManager = getDeveloperCurrentTableManager();
+  const rows = Array.isArray(tableManager.rows) ? tableManager.rows : [];
+  const primaryColumns = Array.isArray(tableManager.primaryKey) ? tableManager.primaryKey : [];
+  const currentPrimaryKey = primaryKey && typeof primaryKey === "object" ? primaryKey : {};
+
+  const row = rows.find((item) => primaryColumns.every((columnName) => String(item?.[columnName] ?? "") === String(currentPrimaryKey?.[columnName] ?? "")));
+  if (!row) {
+    setDeveloperFeedback("No se encontro el registro seleccionado.", "error");
+    return;
+  }
+
+  developerPanelState.editPrimaryKey = currentPrimaryKey;
+  renderDeveloperPrimarySummary(currentPrimaryKey);
+  renderDeveloperEditFields(row);
+  setDeveloperEditFeedback("", "error");
+
+  const title = document.querySelector("#developer-row-edit-title");
+  if (title) {
+    title.textContent = `Editar registro - ${getDeveloperSelectedTable() || "tabla"}`;
+  }
+
+  const modal = document.querySelector("#developer-row-edit-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closeDeveloperEditModal() {
+  developerPanelState.editPrimaryKey = null;
+  setDeveloperEditFeedback("", "error");
+  const modal = document.querySelector("#developer-row-edit-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
+function getDeveloperEditPayload() {
+  const tableManager = getDeveloperCurrentTableManager();
+  const columns = Array.isArray(tableManager.columns) ? tableManager.columns : [];
+  const editableColumns = columns.filter((column) => Boolean(column.is_editable));
+  const payload = {};
+
+  editableColumns.forEach((column) => {
+    const columnName = String(column.name ?? "").trim();
+    const field = document.getElementById(`developer-field-${columnName}`);
+    if (!field) return;
+    payload[columnName] = normalizeDeveloperFieldOutput(column, field.value);
+  });
+
+  return payload;
+}
+
 function renderDeveloperPanel(data) {
-  const payload = data && typeof data === "object" ? data : {};
+  const payload = normalizeDeveloperPayload(data);
   const info = payload.info && typeof payload.info === "object" ? payload.info : {};
   const resumen = payload.resumen && typeof payload.resumen === "object" ? payload.resumen : {};
   const integridad = payload.integridad && typeof payload.integridad === "object" ? payload.integridad : {};
+  const preferences = payload.preferences && typeof payload.preferences === "object" ? payload.preferences : {};
   const usuariosCredenciales = Array.isArray(payload.usuariosCredenciales)
     ? payload.usuariosCredenciales
     : [];
+  const tables = Array.isArray(payload.tables) ? payload.tables : [];
+  const tableManager = payload.tableManager && typeof payload.tableManager === "object"
+    ? payload.tableManager
+    : {};
+
+  developerPanelState.payload = payload;
+  developerPanelState.selectedTable = String(tableManager.selectedTable ?? "").trim();
 
   setNodeTextValue("#developer-info-app", info.appName ?? "RECALDE");
   setNodeTextValue("#developer-info-version", info.appVersion ?? "1.0.0");
@@ -298,7 +916,15 @@ function renderDeveloperPanel(data) {
   setNodeTextValue("#developer-check-pedidos-sin-detalle", Number(integridad.pedidosSinDetalle ?? 0));
   setNodeTextValue("#developer-check-pedidos-descuadrados", Number(integridad.pedidosTotalesDescuadrados ?? 0));
   setNodeTextValue("#developer-check-ventas-sin-historial", Number(integridad.ventasSinHistorial ?? 0));
+
+  renderDeveloperTableSelector(tables, developerPanelState.selectedTable);
+  renderDeveloperTableCatalog(tables, developerPanelState.selectedTable);
+  renderDeveloperTableSummary(tableManager, getDeveloperSelectedTableInfo(tables, developerPanelState.selectedTable));
+  renderDeveloperTableRows(tableManager);
+  renderDeveloperUiPreferences(preferences);
+  applySharedUiPreferences(preferences);
   renderDeveloperUsersCredentials(usuariosCredenciales);
+  initTablePagination(content);
 }
 
 function renderDeveloperUsersCredentials(users) {
@@ -351,8 +977,14 @@ function renderDeveloperUsersCredentials(users) {
     .join("");
 }
 
-async function requestDeveloperData() {
-  const response = await fetch("?route=developer-data");
+async function requestDeveloperData(tableName = "") {
+  const params = new URLSearchParams();
+  params.set("route", "developer-data");
+  if (String(tableName ?? "").trim()) {
+    params.set("table", String(tableName).trim());
+  }
+
+  const response = await fetch(`?${params.toString()}`);
   const responseType = response.headers.get("content-type") || "";
   if (!responseType.includes("application/json")) {
     throw new Error("La respuesta del módulo Developer no es válida.");
@@ -403,6 +1035,7 @@ async function initDeveloperPanel() {
   }
 
   setDeveloperFeedback("", "error");
+  closeDeveloperEditModal();
 
   const initialData = getDeveloperPanelInitialData();
   if (initialData) {
@@ -495,7 +1128,44 @@ function renderHomeUltimasVentas(ultimasVentas) {
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="4" style="text-align:center;">Sin ventas registradas.</td>
+        <td colspan="7" style="text-align:center;">Sin ventas registradas.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((item) => {
+      const total = Number(item.total ?? 0);
+      const abonado = Number(item.total_abonado ?? total);
+      const saldo = Number(item.saldo_pendiente ?? Math.max(total - abonado, 0));
+      const estadoPago = normalizeEstadoValue(item.estado_pago ?? (saldo > 0 ? (abonado > 0 ? "parcial" : "pendiente") : "pagado"));
+      const badgeClass = getPaymentStatusClass(estadoPago);
+
+      return `
+        <tr>
+          <td>${escapeHtml(item.id ?? 0)}</td>
+          <td>${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
+          <td>${escapeHtml(formatMoney(total))}</td>
+          <td>${escapeHtml(formatMoney(abonado))}</td>
+          <td>${escapeHtml(formatMoney(saldo))}</td>
+          <td><span class="home-payment-status ${escapeHtml(badgeClass)}">${escapeHtml(capitalize(estadoPago || "pendiente"))}</span></td>
+          <td>${escapeHtml(item.fecha_venta ?? "-")}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function renderHomeClientesConDeuda(clientesConDeuda) {
+  const tbody = document.querySelector("#home-clientes-deuda-body");
+  if (!tbody) return;
+
+  const rows = Array.isArray(clientesConDeuda) ? clientesConDeuda : [];
+  if (rows.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="text-align:center;">No hay clientes con deuda.</td>
       </tr>
     `;
     return;
@@ -504,13 +1174,61 @@ function renderHomeUltimasVentas(ultimasVentas) {
   tbody.innerHTML = rows
     .map((item) => `
       <tr>
-        <td>${escapeHtml(item.id ?? 0)}</td>
         <td>${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
-        <td>${escapeHtml(formatMoney(item.total ?? 0))}</td>
-        <td>${escapeHtml(item.fecha_venta ?? "-")}</td>
+        <td>${escapeHtml(item.cedula ?? "-")}</td>
+        <td>${escapeHtml(item.total_ventas_con_deuda ?? 0)}</td>
+        <td>${escapeHtml(formatMoney(item.deuda_total ?? 0))}</td>
       </tr>
     `)
     .join("");
+}
+
+function renderHomeUltimosHistorial(ultimosHistorial) {
+  const tbody = document.querySelector("#home-ultimos-historial-body");
+  if (!tbody) return;
+
+  const rows = Array.isArray(ultimosHistorial) ? ultimosHistorial : [];
+  if (rows.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center;">Sin registros de historial.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((item) => {
+      const estadoPago = normalizeEstadoValue(item.estado_pago ?? "pendiente");
+      const badgeClass = getPaymentStatusClass(estadoPago);
+
+      return `
+        <tr>
+          <td>#${escapeHtml(item.id ?? 0)}</td>
+          <td>#${escapeHtml(item.id_venta ?? 0)}</td>
+          <td>${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
+          <td>${escapeHtml(formatMoney(item.total ?? 0))}</td>
+          <td>${escapeHtml(formatMoney(item.total_abonado ?? 0))}</td>
+          <td>${escapeHtml(formatMoney(item.saldo_pendiente ?? 0))}</td>
+          <td><span class="home-payment-status ${escapeHtml(badgeClass)}">${escapeHtml(capitalize(estadoPago || "pendiente"))}</span></td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function renderHomeCarteraSummary(carteraResumen) {
+  const cartera = carteraResumen && typeof carteraResumen === "object" ? carteraResumen : {};
+
+  setNodeText("#home-cartera-total-abonado", formatMoney(cartera.total_abonado ?? 0));
+  setNodeText("#home-cartera-total-pendiente", formatMoney(cartera.total_pendiente ?? 0));
+  setNodeText("#home-cartera-ventas-con-saldo", Number(cartera.ventas_con_saldo ?? 0));
+}
+
+function renderHomeHistorialSummary(historialResumen) {
+  const resumen = historialResumen && typeof historialResumen === "object" ? historialResumen : {};
+  setNodeText("#home-historial-vigentes", Number(resumen.total_vigentes ?? 0));
+  setNodeText("#home-historial-anulados", Number(resumen.total_anulados ?? 0));
 }
 
 function renderHomeCharts(data) {
@@ -718,10 +1436,14 @@ function renderHomeDashboard(data) {
     updatedAtNode.textContent = String(data.ultimaActualizacion ?? new Date().toISOString().slice(0, 19).replace("T", " "));
   }
 
+  renderHomeCarteraSummary(data.carteraResumen);
+  renderHomeHistorialSummary(data.historialResumen);
   renderHomeUltimaVenta(data.ultimasVentas);
   renderHomePedidosEstadoSummary(data.pedidosEstados);
   renderHomeTopProductos(data.topProductos);
   renderHomeUltimasVentas(data.ultimasVentas);
+  renderHomeClientesConDeuda(data.clientesConDeuda);
+  renderHomeUltimosHistorial(data.ultimosHistorial);
   renderHomeCharts(data);
   initTablePagination(content);
 }
@@ -810,6 +1532,16 @@ if (content && !content.innerHTML.trim()) {
   loadRouteContent("home").catch((error) => console.error(error));
 }
 
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    syncSharedUiPreferences(true);
+  }
+});
+
+window.addEventListener("focus", () => {
+  syncSharedUiPreferences(true);
+});
+
 function openPedidoModal() {
   const modal = document.querySelector("#pedido-modal");
   if (modal) {
@@ -819,6 +1551,20 @@ function openPedidoModal() {
 
 function closePedidoModal() {
   const modal = document.querySelector("#pedido-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
+function openPedidoActionsModal() {
+  const modal = document.querySelector("#pedido-actions-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closePedidoActionsModal() {
+  const modal = document.querySelector("#pedido-actions-modal");
   if (modal) {
     modal.hidden = true;
   }
@@ -936,6 +1682,48 @@ function closeVentaEditModal() {
   }
 }
 
+function openVentaAbonoModal() {
+  const modal = document.querySelector("#venta-abono-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closeVentaAbonoModal() {
+  const modal = document.querySelector("#venta-abono-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
+function openVentaDetalleModal() {
+  const modal = document.querySelector("#venta-detalle-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closeVentaDetalleModal() {
+  const modal = document.querySelector("#venta-detalle-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
+function openVentaActionsModal() {
+  const modal = document.querySelector("#venta-actions-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closeVentaActionsModal() {
+  const modal = document.querySelector("#venta-actions-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
 function openCategoriaCreateModal() {
   const modal = document.querySelector("#categoria-create-modal");
   if (modal) {
@@ -1014,6 +1802,13 @@ function toEstadoClass(value) {
   return normalizeEstadoValue(value).replace(/[^a-z0-9_-]/g, "") || "desconocido";
 }
 
+function getPaymentStatusClass(value) {
+  const estado = normalizeEstadoValue(value);
+  if (estado === "pagado") return "payment-pagado";
+  if (estado === "parcial") return "payment-parcial";
+  return "payment-pendiente";
+}
+
 function capitalize(value) {
   const text = String(value ?? "");
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
@@ -1035,6 +1830,36 @@ async function requestPedidoDetail(idPedido) {
   return data;
 }
 
+function renderPedidoDetalleMedidas(item) {
+  const medidas = Array.isArray(item?.medidas) ? item.medidas : [];
+  if (medidas.length === 0) {
+    return "-";
+  }
+
+  return medidas
+    .map((registro) => {
+      const nombre = String(registro?.nombre_persona ?? "").trim() || "Sin nombre";
+      const cantidad = Number(registro?.cantidad ?? 0);
+      const referencia = String(registro?.referencia ?? "").trim();
+      const medidasTexto = String(registro?.medidas ?? "").trim();
+
+      const partes = [
+        `<strong>${escapeHtml(nombre)}</strong>${cantidad > 0 ? ` (x${escapeHtml(cantidad)})` : ""}`
+      ];
+
+      if (referencia) {
+        partes.push(`Ref: ${escapeHtml(referencia)}`);
+      }
+
+      if (medidasTexto) {
+        partes.push(escapeHtml(medidasTexto));
+      }
+
+      return `<span class="pedido-detalle-medida-linea">${partes.join(" | ")}</span>`;
+    })
+    .join("");
+}
+
 async function loadPedidoDetail(idPedido) {
   const data = await requestPedidoDetail(idPedido);
 
@@ -1054,7 +1879,7 @@ async function loadPedidoDetail(idPedido) {
   if (detalles.length === 0) {
     itemsContainer.innerHTML = `
       <tr>
-        <td colspan="4" style="text-align:center;">Este pedido no tiene productos registrados.</td>
+        <td colspan="5" style="text-align:center;">Este pedido no tiene productos registrados.</td>
       </tr>
     `;
     initTablePagination(content);
@@ -1068,41 +1893,115 @@ async function loadPedidoDetail(idPedido) {
         <td>${escapeHtml(item.cantidad ?? 0)}</td>
         <td>${formatMoney(item.precio_unitario)}</td>
         <td>${formatMoney(item.subtotal)}</td>
+        <td class="pedido-detalle-medidas">${renderPedidoDetalleMedidas(item)}</td>
       </tr>
     `)
     .join("");
   initTablePagination(content);
 }
 
-function fillPedidoEditForm(pedido) {
-  const idInput = document.querySelector("#pedido-edit-id");
-  const estadoSelect = document.querySelector("#pedido-edit-estado");
-  const submitBtn = document.querySelector("#pedido-edit-submit");
-  const feedback = document.querySelector("#pedido-edit-feedback");
+function fillPedidoMedidaRow(medidaRow, medida = {}) {
+  if (!medidaRow) return;
 
-  if (!idInput || !estadoSelect || !submitBtn) return;
+  const nombre = medidaRow.querySelector(".pedido-medida-nombre");
+  const referencia = medidaRow.querySelector(".pedido-medida-referencia");
+  const cantidad = medidaRow.querySelector(".pedido-medida-cantidad");
+  const medidas = medidaRow.querySelector(".pedido-medida-texto");
+
+  if (nombre) nombre.value = String(medida.nombre_persona ?? "");
+  if (referencia) referencia.value = String(medida.referencia ?? "");
+  if (cantidad) cantidad.value = String(Math.max(1, Number(medida.cantidad ?? 1) || 1));
+  if (medidas) medidas.value = String(medida.medidas ?? "");
+}
+
+function fillPedidoItemRow(itemRow, item = {}) {
+  if (!itemRow) return;
+
+  const select = itemRow.querySelector(".pedido-item-producto");
+  const cantidad = itemRow.querySelector(".pedido-item-cantidad");
+  if (select) select.value = String(item.id_producto ?? "");
+  if (cantidad) cantidad.value = String(Math.max(1, Number(item.cantidad ?? 1) || 1));
+
+  resetPedidoMedidasInItem(itemRow);
+  const medidas = Array.isArray(item.medidas) ? item.medidas : [];
+  while (getPedidoMedidaRows(itemRow).length < Math.max(medidas.length, 1)) {
+    addPedidoMedidaRowToItem(itemRow);
+  }
+
+  const medidaRows = getPedidoMedidaRows(itemRow);
+  medidaRows.forEach((row, index) => {
+    const medida = medidas[index] ?? null;
+    if (!medida) {
+      resetPedidoMedidaRow(row);
+      return;
+    }
+    fillPedidoMedidaRow(row, medida);
+  });
+}
+
+function fillPedidoEditForm(data) {
+  const config = getPedidoFormConfigByFormId("pedido-edit-form");
+  const pedido = data?.pedido && typeof data.pedido === "object" ? data.pedido : {};
+  const detalles = Array.isArray(data?.detalles) ? data.detalles : [];
+  const idInput = document.querySelector("#pedido-edit-id");
+  const clienteSelect = document.querySelector(config.clienteSelector);
+  const estadoSelect = document.querySelector(config.estadoSelector);
+  const submitBtn = document.querySelector(config.submitSelector);
+
+  if (!idInput || !clienteSelect || !estadoSelect || !submitBtn) return;
+
+  resetPedidoEditForm();
 
   idInput.value = String(pedido.id ?? "");
-  const estadoActual = normalizeEstadoValue(pedido.estado);
+  clienteSelect.value = String(pedido.id_cliente ?? "");
 
+  const estadoActual = normalizeEstadoValue(pedido.estado);
   if ([...estadoSelect.options].some((opt) => opt.value === estadoActual)) {
     estadoSelect.value = estadoActual;
   } else {
-    estadoSelect.value = "procesando";
+    estadoSelect.value = estadoActual === "cancelado" ? "entregado" : "procesando";
+  }
+
+  const container = document.querySelector(config.containerSelector);
+  if (!container) return;
+
+  const firstRow = container.querySelector(".pedido-item-row");
+  if (!firstRow) return;
+
+  const rows = getPedidoItemRows(config.containerSelector);
+  rows.forEach((row, index) => {
+    if (index > 0) {
+      row.remove();
+    }
+  });
+
+  if (detalles.length === 0) {
+    fillPedidoItemRow(firstRow, {});
+  } else {
+    fillPedidoItemRow(firstRow, detalles[0] || {});
+    for (let index = 1; index < detalles.length; index += 1) {
+      addPedidoItemRow(config.containerSelector, config.totalSelector);
+      const currentRows = getPedidoItemRows(config.containerSelector);
+      fillPedidoItemRow(currentRows[index], detalles[index] || {});
+    }
   }
 
   submitBtn.disabled = false;
-  submitBtn.textContent = "Guardar cambios";
-  if (feedback) {
-    feedback.hidden = true;
-    feedback.textContent = "";
-    feedback.classList.remove("error", "success");
-  }
+  submitBtn.textContent = config.submitText;
+  setPedidoEditFeedback("", "error");
+  updatePedidoEditTotal();
 }
 
 function setPedidoEditFeedback(message, type = "error") {
   const feedback = document.querySelector("#pedido-edit-feedback");
   if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
 
   feedback.hidden = false;
   feedback.textContent = message;
@@ -1562,16 +2461,54 @@ function setVentaEditFeedback(message, type = "error") {
   feedback.classList.add(type);
 }
 
+function setVentaAbonoFeedback(message, type = "error") {
+  const feedback = document.querySelector("#venta-abono-feedback");
+  if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
+
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.classList.remove("error", "success");
+  feedback.classList.add(type);
+}
+
+function setVentaDetalleFeedback(message, type = "error") {
+  const feedback = document.querySelector("#venta-detalle-feedback");
+  if (!feedback) return;
+
+  if (!message) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+    return;
+  }
+
+  feedback.hidden = false;
+  feedback.textContent = message;
+  feedback.classList.remove("error", "success");
+  feedback.classList.add(type);
+}
+
 function getVentaCreatePayload() {
   const idPedido = Number(document.querySelector("#venta-create-pedido")?.value ?? 0);
   const totalRaw = normalizePriceInput(document.querySelector("#venta-create-total")?.value);
+  const abonoInicialRaw = normalizePriceInput(document.querySelector("#venta-create-abono-inicial")?.value);
   const total = Number(totalRaw);
+  const abonoInicial = abonoInicialRaw === "" ? NaN : Number(abonoInicialRaw);
   const metodoPago = normalizeEstadoValue(document.querySelector("#venta-create-metodo")?.value ?? "efectivo");
 
   return {
     idPedido,
     totalRaw,
     total,
+    abonoInicialRaw,
+    abonoInicial,
     metodoPago
   };
 }
@@ -1590,17 +2527,40 @@ function getVentaEditPayload() {
   };
 }
 
+function getVentaAbonoPayload() {
+  const idVenta = Number(document.querySelector("#venta-abono-id-venta")?.value ?? 0);
+  const montoRaw = normalizePriceInput(document.querySelector("#venta-abono-monto")?.value);
+  const monto = Number(montoRaw);
+  const metodoPago = normalizeEstadoValue(document.querySelector("#venta-abono-metodo")?.value ?? "efectivo");
+  const observacion = String(document.querySelector("#venta-abono-observacion")?.value ?? "").trim();
+
+  return {
+    idVenta,
+    montoRaw,
+    monto,
+    metodoPago,
+    observacion
+  };
+}
+
 function updateVentaCreateTotalFromPedido() {
   const select = document.querySelector("#venta-create-pedido");
   const totalNode = document.querySelector("#venta-create-total");
+  const abonoInicialNode = document.querySelector("#venta-create-abono-inicial");
   if (!select || !totalNode) return;
 
   const option = select.options[select.selectedIndex];
   const total = Number(option?.dataset?.total ?? 0);
   if (Number.isFinite(total) && total > 0) {
     totalNode.value = total.toFixed(2);
+    if (abonoInicialNode) {
+      abonoInicialNode.value = total.toFixed(2);
+    }
   } else if (!select.value) {
     totalNode.value = "";
+    if (abonoInicialNode) {
+      abonoInicialNode.value = "";
+    }
   }
 }
 
@@ -1623,6 +2583,102 @@ function resetVentaCreateForm() {
   updateVentaCreateTotalFromPedido();
 }
 
+function syncVentaActionButton(targetSelector, sourceButton) {
+  const targetButton = document.querySelector(targetSelector);
+  if (!targetButton) return;
+
+  Object.keys(targetButton.dataset).forEach((key) => {
+    if (key !== "action") {
+      delete targetButton.dataset[key];
+    }
+  });
+
+  if (!sourceButton) {
+    targetButton.hidden = true;
+    targetButton.disabled = true;
+    return;
+  }
+
+  Object.entries(sourceButton.dataset || {}).forEach(([key, value]) => {
+    if (key !== "action") {
+      targetButton.dataset[key] = value;
+    }
+  });
+
+  targetButton.hidden = false;
+  targetButton.disabled = false;
+}
+
+function fillVentaActionsModal(data) {
+  const payload = data && typeof data === "object" ? data : {};
+  const saldo = Number(payload.saldo ?? 0);
+  const hintNode = document.querySelector("#venta-actions-hint");
+
+  setNodeText("#venta-actions-id", payload.id > 0 ? `#${payload.id}` : "-");
+  setNodeText("#venta-actions-pedido", payload.idPedido > 0 ? `#${payload.idPedido}` : "-");
+  setNodeText("#venta-actions-cliente", payload.cliente || "-");
+  setNodeText("#venta-actions-total", payload.totalLabel || "$0.00");
+  setNodeText("#venta-actions-saldo", payload.saldoLabel || "$0.00");
+  setNodeText("#venta-actions-pago", payload.estadoPago || "-");
+  setNodeText("#venta-actions-metodo", payload.metodo || "-");
+  setNodeText("#venta-actions-fecha", payload.fecha || "-");
+  setNodeText("#venta-actions-estado-pedido", payload.estadoPedido || "-");
+
+  syncVentaActionButton("#venta-actions-detalle", payload.detailButton);
+  syncVentaActionButton("#venta-actions-editar", payload.editButton);
+  syncVentaActionButton("#venta-actions-abono", saldo > 0 ? payload.abonoButton : null);
+  syncVentaActionButton("#venta-actions-eliminar", payload.deleteButton);
+
+  if (hintNode) {
+    hintNode.textContent = saldo > 0
+      ? "Puedes revisar detalle, editar la venta, registrar un abono o eliminarla."
+      : "La venta ya no tiene saldo pendiente. Puedes revisar detalle, editarla o eliminarla.";
+  }
+}
+
+function fillVentaAbonoForm(data) {
+  const idVenta = Number(data.idVenta ?? 0);
+  const idPedido = Number(data.idPedido ?? 0);
+  const cliente = String(data.cliente ?? "").trim();
+  const total = Number(data.total ?? 0);
+  const abonado = Number(data.abonado ?? 0);
+  const saldo = Number(data.saldo ?? Math.max(total - abonado, 0));
+
+  const idInput = document.querySelector("#venta-abono-id-venta");
+  const idLabel = document.querySelector("#venta-abono-id-label");
+  const pedidoLabel = document.querySelector("#venta-abono-pedido-label");
+  const clienteLabel = document.querySelector("#venta-abono-cliente-label");
+  const totalLabel = document.querySelector("#venta-abono-total-label");
+  const abonadoLabel = document.querySelector("#venta-abono-abonado-label");
+  const saldoLabel = document.querySelector("#venta-abono-saldo-label");
+  const montoInput = document.querySelector("#venta-abono-monto");
+  const metodoNode = document.querySelector("#venta-abono-metodo");
+  const observacionNode = document.querySelector("#venta-abono-observacion");
+  const submitBtn = document.querySelector("#venta-abono-submit");
+
+  if (idInput) idInput.value = String(idVenta);
+  if (idLabel) idLabel.textContent = idVenta > 0 ? `#${idVenta}` : "-";
+  if (pedidoLabel) pedidoLabel.textContent = idPedido > 0 ? `#${idPedido}` : "-";
+  if (clienteLabel) clienteLabel.textContent = cliente || "-";
+  if (totalLabel) totalLabel.textContent = formatMoney(total);
+  if (abonadoLabel) abonadoLabel.textContent = formatMoney(abonado);
+  if (saldoLabel) saldoLabel.textContent = formatMoney(saldo);
+
+  if (montoInput) {
+    montoInput.value = saldo > 0 ? saldo.toFixed(2) : "";
+    montoInput.max = saldo > 0 ? saldo.toFixed(2) : "";
+  }
+
+  if (metodoNode) metodoNode.value = "efectivo";
+  if (observacionNode) observacionNode.value = "";
+
+  setVentaAbonoFeedback("", "error");
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Guardar Abono";
+  }
+}
+
 function fillVentaEditForm(data) {
   const idNode = document.querySelector("#venta-edit-id");
   const totalNode = document.querySelector("#venta-edit-total");
@@ -1640,10 +2696,68 @@ function fillVentaEditForm(data) {
   }
 }
 
+function renderVentaDetalleAbonos(abonos) {
+  const tbody = document.querySelector("#venta-detalle-abonos-body");
+  if (!tbody) return;
+
+  const rows = Array.isArray(abonos) ? abonos : [];
+  if (rows.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;">Sin abonos registrados.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = rows.map((item) => `
+    <tr>
+      <td>#${escapeHtml(item.id ?? 0)}</td>
+      <td>${escapeHtml(item.fecha_abono ?? "-")}</td>
+      <td>${escapeHtml(formatMoney(item.monto ?? 0))}</td>
+      <td>${escapeHtml(item.metodo_pago ?? "-")}</td>
+      <td>${escapeHtml(item.observacion || "-")}</td>
+      <td>${escapeHtml(item.usuario_registro_nombre || "Sistema")}</td>
+    </tr>
+  `).join("");
+}
+
+function fillVentaDetalleModal(venta, abonos = []) {
+  const ventaData = venta && typeof venta === "object" ? venta : {};
+  const cliente = `${ventaData.nombre ?? ""} ${ventaData.apellido ?? ""}`.trim();
+  const estadoPago = normalizeEstadoValue(ventaData.estado_pago ?? "pendiente");
+  const estadoPedido = normalizeEstadoValue(ventaData.estado ?? "pendiente");
+  const total = Number(ventaData.total ?? 0);
+  const totalAbonado = Number(ventaData.total_abonado ?? 0);
+  const saldo = Number(ventaData.saldo_pendiente ?? Math.max(total - totalAbonado, 0));
+
+  setNodeText("#venta-detalle-id", ventaData.id ? `#${ventaData.id}` : "-");
+  setNodeText("#venta-detalle-pedido", ventaData.id_pedido ? `#${ventaData.id_pedido}` : "-");
+  setNodeText("#venta-detalle-cliente", cliente || "-");
+  setNodeText("#venta-detalle-cedula", ventaData.cedula ?? "-");
+  setNodeText("#venta-detalle-telefono", ventaData.telefono ?? "-");
+  setNodeText("#venta-detalle-empresa", ventaData.empresa ?? "-");
+  setNodeText("#venta-detalle-fecha", ventaData.fecha_venta ?? "-");
+  setNodeText("#venta-detalle-metodo", ventaData.metodo_pago ?? "-");
+  setNodeText("#venta-detalle-estado-pedido", capitalize(estadoPedido));
+  setNodeText("#venta-detalle-total", formatMoney(total));
+  setNodeText("#venta-detalle-abonado", formatMoney(totalAbonado));
+  setNodeText("#venta-detalle-saldo", formatMoney(saldo));
+  setNodeText("#venta-detalle-estado-pago", capitalize(estadoPago));
+  setNodeText("#venta-detalle-ultimo-abono", ventaData.ultima_fecha_abono ?? "-");
+
+  renderVentaDetalleAbonos(abonos);
+  setVentaDetalleFeedback("", "error");
+  initTablePagination(content);
+}
+
 async function requestVentaCreate(payload) {
   const params = new URLSearchParams();
   params.append("id_pedido", String(payload.idPedido));
   params.append("total", payload.totalRaw);
+  if (payload.abonoInicialRaw !== "") {
+    params.append("abono_inicial", payload.abonoInicialRaw);
+  }
   params.append("metodo_pago", payload.metodoPago);
 
   const response = await fetch("?route=venta-crear", {
@@ -1662,6 +2776,21 @@ async function requestVentaCreate(payload) {
   const data = await response.json();
   if (!response.ok || !data.ok) {
     throw new Error(data.message || "No se pudo registrar la venta.");
+  }
+
+  return data;
+}
+
+async function requestVentaDetail(idVenta) {
+  const response = await fetch(`?route=venta-detalle&id=${encodeURIComponent(idVenta)}`);
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo cargar el detalle de la venta.");
   }
 
   return data;
@@ -1689,6 +2818,34 @@ async function requestVentaUpdate(payload) {
   const data = await response.json();
   if (!response.ok || !data.ok) {
     throw new Error(data.message || "No se pudo actualizar la venta.");
+  }
+
+  return data;
+}
+
+async function requestVentaAbonoCreate(payload) {
+  const params = new URLSearchParams();
+  params.append("id_venta", String(payload.idVenta));
+  params.append("monto", payload.montoRaw);
+  params.append("metodo_pago", payload.metodoPago);
+  params.append("observacion", payload.observacion);
+
+  const response = await fetch("?route=venta-abono-crear", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    },
+    body: params.toString()
+  });
+
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo registrar el abono.");
   }
 
   return data;
@@ -1763,6 +2920,10 @@ function getProductoCreatePayload() {
   const descripcion = String(document.querySelector("#producto-create-descripcion")?.value ?? "").trim();
   const precioBaseRaw = normalizePriceInput(document.querySelector("#producto-create-precio")?.value);
   const precioBase = Number(precioBaseRaw);
+  const stockActualRaw = String(document.querySelector("#producto-create-stock-actual")?.value ?? "0").trim();
+  const stockMinimoRaw = String(document.querySelector("#producto-create-stock-minimo")?.value ?? "5").trim();
+  const stockActual = Number(stockActualRaw);
+  const stockMinimo = Number(stockMinimoRaw);
   const estado = normalizeEstadoValue(document.querySelector("#producto-create-estado")?.value ?? "activo");
 
   return {
@@ -1771,6 +2932,10 @@ function getProductoCreatePayload() {
     descripcion,
     precioBaseRaw,
     precioBase,
+    stockActualRaw,
+    stockMinimoRaw,
+    stockActual,
+    stockMinimo,
     estado
   };
 }
@@ -1782,6 +2947,10 @@ function getProductoEditPayload() {
   const descripcion = String(document.querySelector("#producto-edit-descripcion")?.value ?? "").trim();
   const precioBaseRaw = normalizePriceInput(document.querySelector("#producto-edit-precio")?.value);
   const precioBase = Number(precioBaseRaw);
+  const stockActualRaw = String(document.querySelector("#producto-edit-stock-actual")?.value ?? "0").trim();
+  const stockMinimoRaw = String(document.querySelector("#producto-edit-stock-minimo")?.value ?? "5").trim();
+  const stockActual = Number(stockActualRaw);
+  const stockMinimo = Number(stockMinimoRaw);
   const estado = normalizeEstadoValue(document.querySelector("#producto-edit-estado")?.value ?? "activo");
 
   return {
@@ -1791,6 +2960,10 @@ function getProductoEditPayload() {
     descripcion,
     precioBaseRaw,
     precioBase,
+    stockActualRaw,
+    stockMinimoRaw,
+    stockActual,
+    stockMinimo,
     estado
   };
 }
@@ -1804,7 +2977,11 @@ function resetProductoCreateForm() {
   }
 
   const estadoNode = document.querySelector("#producto-create-estado");
+  const stockActualNode = document.querySelector("#producto-create-stock-actual");
+  const stockMinimoNode = document.querySelector("#producto-create-stock-minimo");
   if (estadoNode) estadoNode.value = "activo";
+  if (stockActualNode) stockActualNode.value = "0";
+  if (stockMinimoNode) stockMinimoNode.value = "5";
 
   setProductoCreateFeedback("", "error");
   if (submitBtn) {
@@ -1819,6 +2996,8 @@ function fillProductoEditForm(data) {
   const nombreNode = document.querySelector("#producto-edit-nombre");
   const descripcionNode = document.querySelector("#producto-edit-descripcion");
   const precioNode = document.querySelector("#producto-edit-precio");
+  const stockActualNode = document.querySelector("#producto-edit-stock-actual");
+  const stockMinimoNode = document.querySelector("#producto-edit-stock-minimo");
   const estadoNode = document.querySelector("#producto-edit-estado");
   const submitBtn = document.querySelector("#producto-edit-submit");
 
@@ -1827,6 +3006,8 @@ function fillProductoEditForm(data) {
   if (nombreNode) nombreNode.value = String(data.nombreProducto ?? "");
   if (descripcionNode) descripcionNode.value = String(data.descripcion ?? "");
   if (precioNode) precioNode.value = String(data.precioBase ?? "");
+  if (stockActualNode) stockActualNode.value = String(data.stockActual ?? "0");
+  if (stockMinimoNode) stockMinimoNode.value = String(data.stockMinimo ?? "5");
   if (estadoNode) {
     const estado = normalizeEstadoValue(data.estado ?? "activo");
     estadoNode.value = (estado === "inactivo") ? "inactivo" : "activo";
@@ -1845,6 +3026,8 @@ async function requestProductoCreate(payload) {
   params.append("nombre_producto", payload.nombreProducto);
   params.append("descripcion", payload.descripcion);
   params.append("precio_base", payload.precioBaseRaw);
+  params.append("stock_actual", payload.stockActualRaw);
+  params.append("stock_minimo", payload.stockMinimoRaw);
   params.append("estado", payload.estado);
 
   const response = await fetch("?route=producto-crear", {
@@ -1875,6 +3058,8 @@ async function requestProductoUpdate(payload) {
   params.append("nombre_producto", payload.nombreProducto);
   params.append("descripcion", payload.descripcion);
   params.append("precio_base", payload.precioBaseRaw);
+  params.append("stock_actual", payload.stockActualRaw);
+  params.append("stock_minimo", payload.stockMinimoRaw);
   params.append("estado", payload.estado);
 
   const response = await fetch("?route=producto-actualizar", {
@@ -2095,8 +3280,99 @@ async function requestCategoriaDelete(idCategoria) {
   return data;
 }
 
-function getPedidoItemRows() {
-  return [...document.querySelectorAll("#pedido-items .pedido-item-row")];
+function getPedidoFormConfigByFormId(formId) {
+  if (formId === "pedido-edit-form") {
+    return {
+      formSelector: "#pedido-edit-form",
+      containerSelector: "#pedido-edit-items",
+      clienteSelector: "#pedido-edit-cliente",
+      estadoSelector: "#pedido-edit-estado",
+      totalSelector: "#pedido-edit-total-valor",
+      feedbackSelector: "#pedido-edit-feedback",
+      submitSelector: "#pedido-edit-submit",
+      submitText: "Guardar cambios"
+    };
+  }
+
+  return {
+    formSelector: "#pedido-create-form",
+    containerSelector: "#pedido-items",
+    clienteSelector: "#pedido-create-cliente",
+    estadoSelector: "#pedido-create-estado",
+    totalSelector: "#pedido-create-total-valor",
+    feedbackSelector: "#pedido-create-feedback",
+    submitSelector: "#pedido-create-submit",
+    submitText: "Crear Pedido"
+  };
+}
+
+function getPedidoFormConfigFromElement(element) {
+  const form = element?.closest?.("form");
+  return getPedidoFormConfigByFormId(form?.id ?? "pedido-create-form");
+}
+
+function getPedidoItemRows(containerSelector = "#pedido-items") {
+  const container = document.querySelector(containerSelector);
+  return container ? [...container.querySelectorAll(".pedido-item-row")] : [];
+}
+
+function getPedidoMedidaRows(itemRow) {
+  if (!itemRow) return [];
+  return [...itemRow.querySelectorAll(".pedido-medida-row")];
+}
+
+function resetPedidoMedidaRow(medidaRow) {
+  if (!medidaRow) return;
+
+  const nombre = medidaRow.querySelector(".pedido-medida-nombre");
+  const referencia = medidaRow.querySelector(".pedido-medida-referencia");
+  const cantidad = medidaRow.querySelector(".pedido-medida-cantidad");
+  const medidas = medidaRow.querySelector(".pedido-medida-texto");
+
+  if (nombre) nombre.value = "";
+  if (referencia) referencia.value = "";
+  if (cantidad) cantidad.value = "1";
+  if (medidas) medidas.value = "";
+}
+
+function resetPedidoMedidasInItem(itemRow) {
+  const medidaRows = getPedidoMedidaRows(itemRow);
+  medidaRows.forEach((row, index) => {
+    if (index > 0) {
+      row.remove();
+      return;
+    }
+
+    resetPedidoMedidaRow(row);
+  });
+}
+
+function addPedidoMedidaRowToItem(itemRow) {
+  if (!itemRow) return;
+
+  const list = itemRow.querySelector(".pedido-medidas-list");
+  const firstRow = list?.querySelector(".pedido-medida-row");
+  if (!list || !firstRow) return;
+
+  const clone = firstRow.cloneNode(true);
+  resetPedidoMedidaRow(clone);
+  list.appendChild(clone);
+}
+
+function removePedidoMedidaRow(targetButton) {
+  const itemRow = targetButton?.closest(".pedido-item-row");
+  if (!itemRow) return;
+
+  const medidaRows = getPedidoMedidaRows(itemRow);
+  const targetRow = targetButton.closest(".pedido-medida-row");
+  if (!targetRow) return;
+
+  if (medidaRows.length <= 1) {
+    resetPedidoMedidaRow(targetRow);
+    return;
+  }
+
+  targetRow.remove();
 }
 
 function getProductoPrecioFromRow(row) {
@@ -2107,11 +3383,11 @@ function getProductoPrecioFromRow(row) {
   return Number.isFinite(precio) ? precio : 0;
 }
 
-function updatePedidoCreateTotal() {
-  const totalNode = document.querySelector("#pedido-create-total-valor");
+function updatePedidoFormTotal(containerSelector, totalSelector) {
+  const totalNode = document.querySelector(totalSelector);
   if (!totalNode) return;
 
-  const total = getPedidoItemRows().reduce((sum, row) => {
+  const total = getPedidoItemRows(containerSelector).reduce((sum, row) => {
     const cantidadNode = row.querySelector(".pedido-item-cantidad");
     const cantidad = Number(cantidadNode?.value ?? 0);
     const precio = getProductoPrecioFromRow(row);
@@ -2122,8 +3398,16 @@ function updatePedidoCreateTotal() {
   totalNode.textContent = formatMoney(total);
 }
 
-function addPedidoItemRow() {
-  const container = document.querySelector("#pedido-items");
+function updatePedidoCreateTotal() {
+  updatePedidoFormTotal("#pedido-items", "#pedido-create-total-valor");
+}
+
+function updatePedidoEditTotal() {
+  updatePedidoFormTotal("#pedido-edit-items", "#pedido-edit-total-valor");
+}
+
+function addPedidoItemRow(containerSelector = "#pedido-items", totalSelector = "#pedido-create-total-valor") {
+  const container = document.querySelector(containerSelector);
   const firstRow = container?.querySelector(".pedido-item-row");
   if (!container || !firstRow) return;
 
@@ -2138,39 +3422,116 @@ function addPedidoItemRow() {
     cantidad.value = "1";
   }
 
+  resetPedidoMedidasInItem(clone);
   container.appendChild(clone);
-  updatePedidoCreateTotal();
+  updatePedidoFormTotal(containerSelector, totalSelector);
 }
 
 function removePedidoItemRow(targetButton) {
-  const rows = getPedidoItemRows();
+  const config = getPedidoFormConfigFromElement(targetButton);
+  const rows = getPedidoItemRows(config.containerSelector);
   if (rows.length <= 1) return;
+
   const row = targetButton.closest(".pedido-item-row");
   if (row) {
     row.remove();
-    updatePedidoCreateTotal();
+    updatePedidoFormTotal(config.containerSelector, config.totalSelector);
   }
 }
 
-function getPedidoCreatePayload() {
-  const clienteNode = document.querySelector("#pedido-create-cliente");
-  const estadoNode = document.querySelector("#pedido-create-estado");
+function getPedidoFormPayload(config) {
+  const clienteNode = document.querySelector(config.clienteSelector);
+  const estadoNode = document.querySelector(config.estadoSelector);
 
   const idCliente = Number(clienteNode?.value ?? 0);
   const estado = normalizeEstadoValue(estadoNode?.value ?? "pendiente");
 
-  const items = getPedidoItemRows()
+  const items = getPedidoItemRows(config.containerSelector)
     .map((row) => {
-      const idProducto = Number(row.querySelector(".pedido-item-producto")?.value ?? 0);
-      const cantidad = Number(row.querySelector(".pedido-item-cantidad")?.value ?? 0);
+      const idProducto = Math.trunc(Number(row.querySelector(".pedido-item-producto")?.value ?? 0));
+      const cantidad = Math.trunc(Number(row.querySelector(".pedido-item-cantidad")?.value ?? 0));
+      const asignaciones = getPedidoMedidaRows(row)
+        .map((medidaRow) => {
+          const nombrePersona = String(medidaRow.querySelector(".pedido-medida-nombre")?.value ?? "").trim();
+          const referencia = String(medidaRow.querySelector(".pedido-medida-referencia")?.value ?? "").trim();
+          const medidas = String(medidaRow.querySelector(".pedido-medida-texto")?.value ?? "").trim();
+          const cantidadMedida = Math.trunc(Number(medidaRow.querySelector(".pedido-medida-cantidad")?.value ?? 1));
+
+          if (!nombrePersona && !referencia && !medidas) {
+            return null;
+          }
+
+          return {
+            nombre_persona: nombrePersona,
+            referencia,
+            cantidad: cantidadMedida,
+            medidas
+          };
+        })
+        .filter((asignacion) => asignacion !== null);
+
       return {
         id_producto: idProducto,
-        cantidad
+        cantidad,
+        asignaciones
       };
     })
     .filter((item) => item.id_producto > 0 && item.cantidad > 0);
 
   return { idCliente, estado, items };
+}
+
+function getPedidoCreatePayload() {
+  return getPedidoFormPayload(getPedidoFormConfigByFormId("pedido-create-form"));
+}
+
+function getPedidoEditPayload() {
+  const config = getPedidoFormConfigByFormId("pedido-edit-form");
+  const idNode = document.querySelector("#pedido-edit-id");
+  const payload = getPedidoFormPayload(config);
+  return {
+    id: Math.trunc(Number(idNode?.value ?? 0)),
+    ...payload
+  };
+}
+
+function getPedidoValidationError(payload, actionLabel = "gestionar") {
+  if (!payload || !Array.isArray(payload.items)) {
+    return `Datos inválidos para ${actionLabel} el pedido.`;
+  }
+
+  for (let itemIndex = 0; itemIndex < payload.items.length; itemIndex += 1) {
+    const item = payload.items[itemIndex];
+    const cantidadProducto = Number(item.cantidad ?? 0);
+    const asignaciones = Array.isArray(item.asignaciones) ? item.asignaciones : [];
+    let cantidadAsignada = 0;
+
+    for (let medidaIndex = 0; medidaIndex < asignaciones.length; medidaIndex += 1) {
+      const asignacion = asignaciones[medidaIndex] || {};
+      const nombrePersona = String(asignacion.nombre_persona ?? "").trim();
+      const cantidadMedida = Number(asignacion.cantidad ?? 0);
+
+      if (!nombrePersona) {
+        return `En el producto #${itemIndex + 1} falta el nombre en la medida #${medidaIndex + 1}.`;
+      }
+
+      if (!Number.isFinite(cantidadMedida) || cantidadMedida <= 0) {
+        return `En el producto #${itemIndex + 1} la cantidad de la medida #${medidaIndex + 1} debe ser mayor a cero.`;
+      }
+
+      cantidadAsignada += cantidadMedida;
+    }
+
+    if (cantidadAsignada > cantidadProducto) {
+      return `En el producto #${itemIndex + 1} la cantidad total de medidas (${cantidadAsignada}) supera la cantidad del pedido (${cantidadProducto}).`;
+    }
+  }
+
+  return "";
+}
+
+function getPedidoCreateValidationError(payload) {
+  return getPedidoValidationError(payload, "crear");
 }
 
 async function requestPedidoCreate(payload) {
@@ -2200,41 +3561,12 @@ async function requestPedidoCreate(payload) {
   return data;
 }
 
-function resetPedidoCreateForm() {
-  const form = document.querySelector("#pedido-create-form");
-  const container = document.querySelector("#pedido-items");
-
-  if (!form || !container) return;
-
-  form.reset();
-
-  const rows = getPedidoItemRows();
-  rows.forEach((row, index) => {
-    if (index > 0) row.remove();
-  });
-
-  const firstRow = container.querySelector(".pedido-item-row");
-  if (firstRow) {
-    const select = firstRow.querySelector(".pedido-item-producto");
-    const cantidad = firstRow.querySelector(".pedido-item-cantidad");
-    if (select) select.value = "";
-    if (cantidad) cantidad.value = "1";
-  }
-
-  setPedidoCreateFeedback("", "error");
-  const submitBtn = document.querySelector("#pedido-create-submit");
-  if (submitBtn) {
-    submitBtn.disabled = false;
-    submitBtn.textContent = "Crear Pedido";
-  }
-
-  updatePedidoCreateTotal();
-}
-
-async function updatePedidoEstado(idPedido, estado) {
+async function requestPedidoUpdate(payload) {
   const params = new URLSearchParams();
-  params.append("id", idPedido);
-  params.append("estado", estado);
+  params.append("id", String(payload.id));
+  params.append("id_cliente", String(payload.idCliente));
+  params.append("estado", payload.estado);
+  params.append("items", JSON.stringify(payload.items));
 
   const response = await fetch("?route=pedido-actualizar", {
     method: "POST",
@@ -2257,19 +3589,130 @@ async function updatePedidoEstado(idPedido, estado) {
   return data;
 }
 
-function refreshPedidoEstadoInRow(idPedido, estado) {
-  const editBtn = content
-    ? [...content.querySelectorAll('[data-action="editar-pedido"]')]
-        .find((btn) => String(btn.dataset.id) === String(idPedido))
-    : null;
-  const row = editBtn?.closest("tr");
-  if (!row) return;
+async function requestPedidoDelete(idPedido) {
+  const params = new URLSearchParams();
+  params.append("id", String(idPedido));
 
-  const statusSpan = row.querySelector('span[class^="status-"]');
-  if (!statusSpan) return;
+  const response = await fetch("?route=pedido-eliminar", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+    },
+    body: params.toString()
+  });
 
-  statusSpan.className = `status-${toEstadoClass(estado)}`;
-  statusSpan.textContent = capitalize(normalizeEstadoValue(estado));
+  const responseType = response.headers.get("content-type") || "";
+  if (!responseType.includes("application/json")) {
+    throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
+  }
+
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    throw new Error(data.message || "No se pudo eliminar el pedido.");
+  }
+
+  return data;
+}
+
+function resetPedidoForm(config) {
+  const form = document.querySelector(config.formSelector);
+  const container = document.querySelector(config.containerSelector);
+
+  if (!form || !container) return;
+
+  form.reset();
+
+  const rows = getPedidoItemRows(config.containerSelector);
+  rows.forEach((row, index) => {
+    if (index > 0) {
+      row.remove();
+      return;
+    }
+
+    const select = row.querySelector(".pedido-item-producto");
+    const cantidad = row.querySelector(".pedido-item-cantidad");
+    if (select) select.value = "";
+    if (cantidad) cantidad.value = "1";
+    resetPedidoMedidasInItem(row);
+  });
+
+  const feedback = document.querySelector(config.feedbackSelector);
+  if (feedback) {
+    feedback.hidden = true;
+    feedback.textContent = "";
+    feedback.classList.remove("error", "success");
+  }
+
+  const submitBtn = document.querySelector(config.submitSelector);
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = config.submitText;
+  }
+
+  updatePedidoFormTotal(config.containerSelector, config.totalSelector);
+}
+
+function resetPedidoCreateForm() {
+  resetPedidoForm(getPedidoFormConfigByFormId("pedido-create-form"));
+}
+
+function resetPedidoEditForm() {
+  resetPedidoForm(getPedidoFormConfigByFormId("pedido-edit-form"));
+  const idInput = document.querySelector("#pedido-edit-id");
+  if (idInput) {
+    idInput.value = "";
+  }
+}
+
+function syncPedidoActionButton(targetSelector, sourceButton) {
+  const targetButton = document.querySelector(targetSelector);
+  if (!targetButton) return;
+
+  Object.keys(targetButton.dataset).forEach((key) => {
+    if (key !== "action") {
+      delete targetButton.dataset[key];
+    }
+  });
+
+  if (!sourceButton) {
+    targetButton.hidden = true;
+    targetButton.disabled = true;
+    return;
+  }
+
+  Object.entries(sourceButton.dataset || {}).forEach(([key, value]) => {
+    if (key !== "action") {
+      targetButton.dataset[key] = value;
+    }
+  });
+
+  targetButton.hidden = false;
+  targetButton.disabled = Boolean(sourceButton.disabled);
+  targetButton.title = sourceButton.getAttribute("title") || "";
+}
+
+function fillPedidoActionsModal(data) {
+  const payload = data && typeof data === "object" ? data : {};
+  const hasVenta = Number(payload.idVenta ?? 0) > 0;
+  const hintNode = document.querySelector("#pedido-actions-hint");
+
+  setNodeText("#pedido-actions-id", payload.id > 0 ? `#${payload.id}` : "-");
+  setNodeText("#pedido-actions-cliente", payload.cliente || "-");
+  setNodeText("#pedido-actions-cedula", payload.cedula || "-");
+  setNodeText("#pedido-actions-total", payload.totalLabel || "$0.00");
+  setNodeText("#pedido-actions-fecha", payload.fecha || "-");
+  setNodeText("#pedido-actions-estado", payload.estado || "-");
+  setNodeText("#pedido-actions-venta", hasVenta ? `Venta #${payload.idVenta}` : "Sin venta");
+
+  syncPedidoActionButton("#pedido-actions-ver", payload.viewButton);
+  syncPedidoActionButton("#pedido-actions-editar", payload.editButton);
+  syncPedidoActionButton("#pedido-actions-eliminar", payload.deleteButton);
+
+  if (hintNode) {
+    hintNode.textContent = hasVenta
+      ? "Este pedido tiene una venta asociada. Puedes revisar o editar el pedido; la eliminación queda bloqueada por integridad."
+      : "Puedes revisar el detalle, editar el pedido completo o eliminarlo si aún no tiene una venta asociada.";
+  }
 }
 
 function openHistorialModal() {
@@ -2281,6 +3724,20 @@ function openHistorialModal() {
 
 function closeHistorialModal() {
   const modal = document.querySelector("#historial-modal");
+  if (modal) {
+    modal.hidden = true;
+  }
+}
+
+function openHistorialActionsModal() {
+  const modal = document.querySelector("#historial-actions-modal");
+  if (modal) {
+    modal.hidden = false;
+  }
+}
+
+function closeHistorialActionsModal() {
+  const modal = document.querySelector("#historial-actions-modal");
   if (modal) {
     modal.hidden = true;
   }
@@ -2308,6 +3765,58 @@ function setHistorialFeedback(message, type = "error") {
   feedback.classList.add(type);
 }
 
+function syncHistorialActionButton(targetSelector, sourceButton) {
+  const targetButton = document.querySelector(targetSelector);
+  if (!targetButton) return;
+
+  Object.keys(targetButton.dataset).forEach((key) => {
+    if (key !== "action") {
+      delete targetButton.dataset[key];
+    }
+  });
+
+  if (!sourceButton) {
+    targetButton.hidden = true;
+    targetButton.disabled = true;
+    return;
+  }
+
+  Object.entries(sourceButton.dataset || {}).forEach(([key, value]) => {
+    if (key !== "action") {
+      targetButton.dataset[key] = value;
+    }
+  });
+
+  targetButton.hidden = false;
+  targetButton.disabled = false;
+}
+
+function fillHistorialActionsModal(data) {
+  const payload = data && typeof data === "object" ? data : {};
+  const canAnular = Boolean(payload.canAnular);
+  const hintNode = document.querySelector("#historial-actions-hint");
+
+  setNodeText("#historial-actions-id", payload.id > 0 ? `#${payload.id}` : "-");
+  setNodeText("#historial-actions-venta", payload.idVenta > 0 ? `#${payload.idVenta}` : "-");
+  setNodeText("#historial-actions-pedido", payload.idPedido > 0 ? `#${payload.idPedido}` : "-");
+  setNodeText("#historial-actions-cliente", payload.cliente || "-");
+  setNodeText("#historial-actions-total", payload.totalLabel || "$0.00");
+  setNodeText("#historial-actions-pago", payload.estadoPago || "-");
+  setNodeText("#historial-actions-metodo", payload.metodo || "-");
+  setNodeText("#historial-actions-fecha", payload.fecha || "-");
+  setNodeText("#historial-actions-estado", payload.estadoHistorial || "-");
+
+  syncHistorialActionButton("#historial-actions-ver", payload.viewButton);
+  syncHistorialActionButton("#historial-actions-imprimir", payload.printButton);
+  syncHistorialActionButton("#historial-actions-anular", canAnular ? payload.anularButton : null);
+
+  if (hintNode) {
+    hintNode.textContent = canAnular
+      ? "Puedes revisar detalle, imprimir el comprobante o anular este registro."
+      : "Este registro ya está anulado. Puedes revisar el detalle o imprimir el comprobante.";
+  }
+}
+
 async function requestHistorialDetail(idHistorial) {
   const response = await fetch(`?route=historial-detalle&id=${encodeURIComponent(idHistorial)}`);
   const responseType = response.headers.get("content-type") || "";
@@ -2329,6 +3838,57 @@ function setNodeText(selector, value) {
   node.textContent = String(value ?? "-");
 }
 
+function getHistorialBadgeClassByEstado(estadoValue) {
+  const estado = normalizeEstadoValue(estadoValue);
+  if (estado === "anulado") return "anulado";
+  if (estado === "entregado") return "entregado";
+  return "registrado";
+}
+
+function getPedidoChipClassByEstado(estadoValue) {
+  const estado = normalizeEstadoValue(estadoValue);
+  if (estado === "entregado" || estado === "listo") return "is-ok";
+  if (estado === "procesando") return "is-proceso";
+  if (estado === "cancelado") return "is-cancelado";
+  return "is-pendiente";
+}
+
+function getPagoChipClassByEstado(estadoValue) {
+  const estado = normalizeEstadoValue(estadoValue);
+  if (estado === "pagado") return "pago-pagado";
+  if (estado === "parcial") return "pago-parcial";
+  return "pago-pendiente";
+}
+
+function updateHistorialDetailStatusUI(estadoHistorial, estadoPedido, estadoPago = "pendiente") {
+  const estadoHistorialNode = document.querySelector("#historial-detalle-estado");
+  if (estadoHistorialNode) {
+    estadoHistorialNode.className = `badge ${getHistorialBadgeClassByEstado(estadoHistorial)}`;
+  }
+
+  const estadoPedidoNode = document.querySelector("#historial-detalle-estado-pedido");
+  if (estadoPedidoNode) {
+    estadoPedidoNode.className = `pedido-chip ${getPedidoChipClassByEstado(estadoPedido)}`;
+  }
+
+  const estadoPagoNode = document.querySelector("#historial-detalle-estado-pago");
+  if (estadoPagoNode) {
+    estadoPagoNode.className = `pago-chip ${getPagoChipClassByEstado(estadoPago)}`;
+  }
+}
+
+function formatPersonalizacionesDetalle(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return "-";
+
+  return text
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => `- ${escapeHtml(part)}`)
+    .join("<br>");
+}
+
 function renderHistorialDetalleItems(detalle) {
   const tbody = document.querySelector("#historial-detalle-items-body");
   if (!tbody) return;
@@ -2337,7 +3897,7 @@ function renderHistorialDetalleItems(detalle) {
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align:center;">Sin detalle para mostrar.</td>
+        <td colspan="7" class="historial-empty">Sin detalle para mostrar.</td>
       </tr>
     `;
     return;
@@ -2350,13 +3910,13 @@ function renderHistorialDetalleItems(detalle) {
 
     return `
       <tr>
-        <td>${escapeHtml(item.nombre_producto ?? "-")}</td>
-        <td>${escapeHtml(item.cantidad ?? 0)}</td>
-        <td>${escapeHtml(formatMoney(item.precio_unitario ?? 0))}</td>
-        <td>${escapeHtml(formatMoney(subtotal))}</td>
-        <td>${escapeHtml(formatMoney(totalExtra))}</td>
-        <td>${escapeHtml(formatMoney(totalLinea))}</td>
-        <td>${escapeHtml(item.personalizaciones || "-")}</td>
+        <td data-label="Producto">${escapeHtml(item.nombre_producto ?? "-")}</td>
+        <td data-label="Cantidad">${escapeHtml(item.cantidad ?? 0)}</td>
+        <td data-label="P. Unitario">${escapeHtml(formatMoney(item.precio_unitario ?? 0))}</td>
+        <td data-label="Subtotal">${escapeHtml(formatMoney(subtotal))}</td>
+        <td data-label="Extras">${escapeHtml(formatMoney(totalExtra))}</td>
+        <td data-label="Total Línea">${escapeHtml(formatMoney(totalLinea))}</td>
+        <td class="historial-personalizaciones" data-label="Personalizaciones">${formatPersonalizacionesDetalle(item.personalizaciones)}</td>
       </tr>
     `;
   }).join("");
@@ -2365,8 +3925,12 @@ function renderHistorialDetalleItems(detalle) {
 function fillHistorialDetail(registro, detalle = [], resumen = {}) {
   const cliente = `${registro.nombre ?? ""} ${registro.apellido ?? ""}`.trim();
   const responsable = String(registro.usuario_responsable_nombre ?? "").trim() || "Sistema";
-  const estadoHistorial = capitalize(normalizeEstadoValue(registro.estado || "registrado"));
-  const estadoPedido = capitalize(normalizeEstadoValue(registro.estado_pedido || "pendiente"));
+  const estadoHistorialRaw = normalizeEstadoValue(registro.estado || "registrado");
+  const estadoPedidoRaw = normalizeEstadoValue(registro.estado_pedido || "pendiente");
+  const estadoPagoRaw = normalizeEstadoValue(registro.estado_pago || "pendiente");
+  const estadoHistorial = capitalize(estadoHistorialRaw);
+  const estadoPedido = capitalize(estadoPedidoRaw);
+  const estadoPago = capitalize(estadoPagoRaw);
   const metodoPago = capitalize(normalizeEstadoValue(registro.metodo_pago || "no definido"));
 
   const totalItems = Number(resumen.total_items ?? registro.total_items ?? 0);
@@ -2374,6 +3938,8 @@ function fillHistorialDetail(registro, detalle = [], resumen = {}) {
   const subtotalProductos = Number(resumen.subtotal_productos ?? 0);
   const totalExtras = Number(resumen.total_extras ?? 0);
   const totalCalculado = Number(resumen.total_calculado ?? (subtotalProductos + totalExtras));
+  const totalAbonado = Number(registro.total_abonado ?? 0);
+  const saldoPendiente = Number(registro.saldo_pendiente ?? Math.max(Number(registro.total ?? 0) - totalAbonado, 0));
 
   setNodeText("#historial-detalle-id", registro.id ?? "-");
   setNodeText("#historial-detalle-venta", registro.id_venta ?? "-");
@@ -2388,6 +3954,10 @@ function fillHistorialDetail(registro, detalle = [], resumen = {}) {
   setNodeText("#historial-detalle-fecha", registro.fecha ?? "-");
   setNodeText("#historial-detalle-fecha-venta", registro.fecha_venta ?? "-");
   setNodeText("#historial-detalle-total", formatMoney(registro.total ?? 0));
+  setNodeText("#historial-detalle-abonado", formatMoney(totalAbonado));
+  setNodeText("#historial-detalle-saldo", formatMoney(saldoPendiente));
+  setNodeText("#historial-detalle-estado-pago", estadoPago);
+  setNodeText("#historial-detalle-ultimo-abono", registro.ultima_fecha_abono ?? "-");
   setNodeText("#historial-detalle-estado", estadoHistorial);
   setNodeText("#historial-detalle-estado-pedido", estadoPedido);
   setNodeText("#historial-detalle-total-items", totalItems);
@@ -2395,6 +3965,7 @@ function fillHistorialDetail(registro, detalle = [], resumen = {}) {
   setNodeText("#historial-detalle-subtotal", formatMoney(subtotalProductos));
   setNodeText("#historial-detalle-extras", formatMoney(totalExtras));
   setNodeText("#historial-detalle-total-calculado", formatMoney(totalCalculado));
+  updateHistorialDetailStatusUI(estadoHistorialRaw, estadoPedidoRaw, estadoPagoRaw);
 
   renderHistorialDetalleItems(detalle);
   initTablePagination(content);
@@ -2446,6 +4017,8 @@ function refreshHistorialRowAsAnulado(idHistorial) {
     badge.textContent = "Anulado";
   }
 
+  row.dataset.estadoHistorial = "Anulado";
+
   const anularBtn = row.querySelector('[data-action="anular-historial"]');
   if (anularBtn) {
     anularBtn.remove();
@@ -2454,6 +4027,7 @@ function refreshHistorialRowAsAnulado(idHistorial) {
   const detailId = document.querySelector("#historial-detalle-id");
   const detailEstado = document.querySelector("#historial-detalle-estado");
   if (detailId && detailEstado && String(detailId.textContent ?? "") === String(idHistorial)) {
+    detailEstado.className = "badge anulado";
     detailEstado.textContent = "Anulado";
   }
 }
@@ -2610,6 +4184,22 @@ if (content) {
       return;
     }
 
+    const developerSelectTableBtn = e.target.closest('[data-action="developer-select-table"]');
+    if (developerSelectTableBtn) {
+      const tableName = String(developerSelectTableBtn.dataset.table ?? "").trim();
+      if (!tableName) return;
+
+      setDeveloperFeedback("", "error");
+
+      try {
+        const data = await requestDeveloperData(tableName);
+        renderDeveloperPanel(data);
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      }
+      return;
+    }
+
     const developerRefreshBtn = e.target.closest('[data-action="developer-refresh"]');
     if (developerRefreshBtn) {
       const originalLabel = developerRefreshBtn.textContent;
@@ -2626,6 +4216,96 @@ if (content) {
       } finally {
         developerRefreshBtn.disabled = false;
         developerRefreshBtn.textContent = originalLabel;
+      }
+      return;
+    }
+
+    const developerToggleVentasActionsBtn = e.target.closest('[data-action="developer-toggle-ventas-actions-column"]');
+    if (developerToggleVentasActionsBtn) {
+      const originalLabel = developerToggleVentasActionsBtn.textContent;
+      const currentlyEnabled = String(developerToggleVentasActionsBtn.dataset.enabled ?? "1") === "1";
+
+      developerToggleVentasActionsBtn.disabled = true;
+      developerToggleVentasActionsBtn.textContent = "Guardando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("actualizar-preferencia-ui", {
+          key: "ventas_show_actions_column",
+          value: currentlyEnabled ? "0" : "1",
+          table: getDeveloperSelectedTable()
+        });
+
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+
+        setDeveloperFeedback(result.message || "Preferencia actualizada correctamente.", "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerToggleVentasActionsBtn.disabled = false;
+        if (!content?.querySelector('[data-developer-panel="1"]')) {
+          developerToggleVentasActionsBtn.textContent = originalLabel;
+        }
+      }
+      return;
+    }
+
+    const developerToggleHistorialActionsBtn = e.target.closest('[data-action="developer-toggle-historial-actions-column"]');
+    if (developerToggleHistorialActionsBtn) {
+      const originalLabel = developerToggleHistorialActionsBtn.textContent;
+      const currentlyEnabled = String(developerToggleHistorialActionsBtn.dataset.enabled ?? "1") === "1";
+
+      developerToggleHistorialActionsBtn.disabled = true;
+      developerToggleHistorialActionsBtn.textContent = "Guardando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("actualizar-preferencia-ui", {
+          key: "historial_show_actions_column",
+          value: currentlyEnabled ? "0" : "1",
+          table: getDeveloperSelectedTable()
+        });
+
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+
+        setDeveloperFeedback(result.message || "Preferencia actualizada correctamente.", "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerToggleHistorialActionsBtn.disabled = false;
+        if (!content?.querySelector('[data-developer-panel="1"]')) {
+          developerToggleHistorialActionsBtn.textContent = originalLabel;
+        }
+      }
+      return;
+    }
+
+    const developerRefreshTableBtn = e.target.closest('[data-action="developer-refresh-table"]');
+    if (developerRefreshTableBtn) {
+      const tableName = getDeveloperSelectedTable();
+      if (!tableName) {
+        setDeveloperFeedback("Debes seleccionar una tabla.", "error");
+        return;
+      }
+
+      const originalLabel = developerRefreshTableBtn.textContent;
+      developerRefreshTableBtn.disabled = true;
+      developerRefreshTableBtn.textContent = "Actualizando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const data = await requestDeveloperData(tableName);
+        renderDeveloperPanel(data);
+        setDeveloperFeedback(`Tabla ${tableName} actualizada correctamente.`, "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerRefreshTableBtn.disabled = false;
+        developerRefreshTableBtn.textContent = originalLabel;
       }
       return;
     }
@@ -2651,6 +4331,46 @@ if (content) {
       } finally {
         developerRecalculateBtn.disabled = false;
         developerRecalculateBtn.textContent = originalLabel;
+      }
+      return;
+    }
+
+    const developerClearTableBtn = e.target.closest('[data-action="developer-clear-table"]');
+    if (developerClearTableBtn) {
+      const tableName = getDeveloperSelectedTable();
+      if (!tableName) {
+        setDeveloperFeedback("Debes seleccionar una tabla.", "error");
+        return;
+      }
+
+      const confirmed = window.confirm(`Se eliminarán todos los registros de ${tableName}. Esta acción no se puede deshacer. ¿Deseas continuar?`);
+      if (!confirmed) return;
+
+      const originalLabel = developerClearTableBtn.textContent;
+      developerClearTableBtn.disabled = true;
+      developerClearTableBtn.textContent = "Procesando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("vaciar-tabla", {
+          table: tableName
+        });
+
+        if (result.logout) {
+          window.location.href = result.redirect || "?route=login";
+          return;
+        }
+
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+
+        setDeveloperFeedback(result.message || "Tabla vaciada correctamente.", "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerClearTableBtn.disabled = false;
+        developerClearTableBtn.textContent = originalLabel;
       }
       return;
     }
@@ -2698,10 +4418,106 @@ if (content) {
       return;
     }
 
+    const developerEditRowBtn = e.target.closest('[data-action="developer-edit-row"]');
+    if (developerEditRowBtn) {
+      const primaryKey = decodeDeveloperPayload(developerEditRowBtn.dataset.primaryKey ?? "");
+      if (!primaryKey || typeof primaryKey !== "object") {
+        setDeveloperFeedback("No se pudo leer la clave primaria de la fila.", "error");
+        return;
+      }
+
+      openDeveloperEditModal(primaryKey);
+      return;
+    }
+
+    const developerDeleteRowBtn = e.target.closest('[data-action="developer-delete-row"]');
+    if (developerDeleteRowBtn) {
+      const tableName = getDeveloperSelectedTable();
+      if (!tableName) {
+        setDeveloperFeedback("Debes seleccionar una tabla.", "error");
+        return;
+      }
+
+      const primaryKey = decodeDeveloperPayload(developerDeleteRowBtn.dataset.primaryKey ?? "");
+      if (!primaryKey || typeof primaryKey !== "object") {
+        setDeveloperFeedback("No se pudo leer la clave primaria de la fila.", "error");
+        return;
+      }
+
+      const primarySummary = Object.entries(primaryKey)
+        .map(([key, value]) => `${key}=${value}`)
+        .join(", ");
+      const confirmed = window.confirm(`Se eliminará la fila ${primarySummary || "seleccionada"} de ${tableName}. ¿Deseas continuar?`);
+      if (!confirmed) return;
+
+      const originalLabel = developerDeleteRowBtn.textContent;
+      developerDeleteRowBtn.disabled = true;
+      developerDeleteRowBtn.textContent = "Eliminando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("eliminar-fila-tabla", {
+          table: tableName,
+          primary_key: JSON.stringify(primaryKey)
+        });
+
+        if (result.logout) {
+          window.location.href = result.redirect || "?route=login";
+          return;
+        }
+
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+
+        setDeveloperFeedback(result.message || "Fila eliminada correctamente.", "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerDeleteRowBtn.disabled = false;
+        developerDeleteRowBtn.textContent = originalLabel;
+      }
+      return;
+    }
+
     const newVentaBtn = e.target.closest('[data-action="nueva-venta"]');
     if (newVentaBtn) {
       resetVentaCreateForm();
       openVentaCreateModal();
+      return;
+    }
+
+    const ventaActionModalBtn = e.target.closest('#venta-actions-modal [data-action]');
+    if (ventaActionModalBtn) {
+      closeVentaActionsModal();
+    }
+
+    const ventaRowTrigger = e.target.closest('tr[data-venta-row="1"]');
+    if (
+      ventaRowTrigger &&
+      !e.target.closest(".btn") &&
+      !e.target.closest("a, input, select, textarea, label, button")
+    ) {
+      const saldoLabel = String(ventaRowTrigger.dataset.saldoLabel ?? "$0.00");
+      const saldoValue = Number.parseFloat(saldoLabel.replace(/[^0-9.-]+/g, "")) || 0;
+
+      fillVentaActionsModal({
+        id: Number(ventaRowTrigger.dataset.ventaId ?? 0),
+        idPedido: Number(ventaRowTrigger.dataset.pedidoId ?? 0),
+        cliente: ventaRowTrigger.dataset.cliente ?? "",
+        totalLabel: ventaRowTrigger.dataset.totalLabel ?? "$0.00",
+        saldoLabel,
+        saldo: saldoValue,
+        estadoPago: ventaRowTrigger.dataset.estadoPago ?? "-",
+        metodo: ventaRowTrigger.dataset.metodo ?? "-",
+        fecha: ventaRowTrigger.dataset.fecha ?? "-",
+        estadoPedido: ventaRowTrigger.dataset.estadoPedido ?? "-",
+        detailButton: ventaRowTrigger.querySelector('[data-action="ver-venta-detalle"]'),
+        editButton: ventaRowTrigger.querySelector('[data-action="editar-venta"]'),
+        abonoButton: ventaRowTrigger.querySelector('[data-action="registrar-abono-venta"]'),
+        deleteButton: ventaRowTrigger.querySelector('[data-action="eliminar-venta"]')
+      });
+      openVentaActionsModal();
       return;
     }
 
@@ -2713,6 +4529,41 @@ if (content) {
         metodoPago: editVentaBtn.dataset.metodo ?? "efectivo"
       });
       openVentaEditModal();
+      return;
+    }
+
+    const viewVentaDetalleBtn = e.target.closest('[data-action="ver-venta-detalle"]');
+    if (viewVentaDetalleBtn) {
+      const idVenta = Number(viewVentaDetalleBtn.dataset.id ?? 0);
+      if (idVenta <= 0) return;
+
+      openVentaDetalleModal();
+      setVentaDetalleFeedback("Cargando detalle de la venta...", "success");
+
+      try {
+        const data = await requestVentaDetail(idVenta);
+        fillVentaDetalleModal(data.venta || {}, data.abonos || []);
+      } catch (error) {
+        setVentaDetalleFeedback(error.message, "error");
+      }
+      return;
+    }
+
+    const registrarAbonoBtn = e.target.closest('[data-action="registrar-abono-venta"]');
+    if (registrarAbonoBtn) {
+      const payload = {
+        idVenta: Number(registrarAbonoBtn.dataset.id ?? 0),
+        idPedido: Number(registrarAbonoBtn.dataset.pedido ?? 0),
+        cliente: registrarAbonoBtn.dataset.cliente ?? "",
+        total: Number(registrarAbonoBtn.dataset.total ?? 0),
+        abonado: Number(registrarAbonoBtn.dataset.abonado ?? 0),
+        saldo: Number(registrarAbonoBtn.dataset.saldo ?? 0)
+      };
+
+      if (payload.idVenta <= 0) return;
+
+      fillVentaAbonoForm(payload);
+      openVentaAbonoModal();
       return;
     }
 
@@ -2780,6 +4631,8 @@ if (content) {
         nombreProducto: editProductoBtn.dataset.nombre ?? "",
         descripcion: editProductoBtn.dataset.descripcion ?? "",
         precioBase: editProductoBtn.dataset.precio ?? "",
+        stockActual: editProductoBtn.dataset.stockActual ?? "0",
+        stockMinimo: editProductoBtn.dataset.stockMinimo ?? "5",
         estado: editProductoBtn.dataset.estado ?? "activo"
       });
       openProductoEditModal();
@@ -2910,13 +4763,54 @@ if (content) {
 
     const addItemBtn = e.target.closest('[data-action="agregar-item-pedido"]');
     if (addItemBtn) {
-      addPedidoItemRow();
+      const config = getPedidoFormConfigFromElement(addItemBtn);
+      addPedidoItemRow(config.containerSelector, config.totalSelector);
       return;
     }
 
     const removeItemBtn = e.target.closest('[data-action="quitar-item-pedido"]');
     if (removeItemBtn) {
       removePedidoItemRow(removeItemBtn);
+      return;
+    }
+
+    const addMedidaBtn = e.target.closest('[data-action="agregar-medida-item"]');
+    if (addMedidaBtn) {
+      const itemRow = addMedidaBtn.closest(".pedido-item-row");
+      addPedidoMedidaRowToItem(itemRow);
+      return;
+    }
+
+    const removeMedidaBtn = e.target.closest('[data-action="quitar-medida-item"]');
+    if (removeMedidaBtn) {
+      removePedidoMedidaRow(removeMedidaBtn);
+      return;
+    }
+
+    const pedidoActionModalBtn = e.target.closest('#pedido-actions-modal [data-action]');
+    if (pedidoActionModalBtn) {
+      closePedidoActionsModal();
+    }
+
+    const pedidoRowTrigger = e.target.closest('tr[data-pedido-row="1"]');
+    if (
+      pedidoRowTrigger &&
+      !e.target.closest(".btn") &&
+      !e.target.closest("a, input, select, textarea, label, button")
+    ) {
+      fillPedidoActionsModal({
+        id: Number(pedidoRowTrigger.dataset.id ?? 0),
+        cliente: pedidoRowTrigger.dataset.cliente ?? "",
+        cedula: pedidoRowTrigger.dataset.cedula ?? "",
+        totalLabel: pedidoRowTrigger.dataset.totalLabel ?? "$0.00",
+        fecha: pedidoRowTrigger.dataset.fecha ?? "-",
+        estado: pedidoRowTrigger.dataset.estado ?? "-",
+        idVenta: Number(pedidoRowTrigger.dataset.ventaId ?? 0),
+        viewButton: pedidoRowTrigger.querySelector('[data-action="ver-pedido"]'),
+        editButton: pedidoRowTrigger.querySelector('[data-action="editar-pedido"]'),
+        deleteButton: pedidoRowTrigger.querySelector('[data-action="eliminar-pedido"]')
+      });
+      openPedidoActionsModal();
       return;
     }
 
@@ -2928,7 +4822,7 @@ if (content) {
       if (itemsContainer) {
         itemsContainer.innerHTML = `
           <tr>
-            <td colspan="4" style="text-align:center;">Cargando...</td>
+            <td colspan="5" style="text-align:center;">Cargando...</td>
           </tr>
         `;
       }
@@ -2939,7 +4833,7 @@ if (content) {
         if (itemsContainer) {
           itemsContainer.innerHTML = `
             <tr>
-              <td colspan="4" style="text-align:center;">${escapeHtml(error.message)}</td>
+              <td colspan="5" style="text-align:center;">${escapeHtml(error.message)}</td>
             </tr>
           `;
         }
@@ -2952,6 +4846,8 @@ if (content) {
       const idPedido = editBtn.dataset.id;
       const submitBtn = document.querySelector("#pedido-edit-submit");
       const idInput = document.querySelector("#pedido-edit-id");
+
+      resetPedidoEditForm();
 
       if (submitBtn) {
         submitBtn.disabled = true;
@@ -2970,7 +4866,7 @@ if (content) {
 
       try {
         const data = await requestPedidoDetail(idPedido);
-        fillPedidoEditForm(data.pedido || {});
+        fillPedidoEditForm(data);
       } catch (error) {
         setPedidoEditFeedback(error.message, "error");
         if (submitBtn) {
@@ -2978,6 +4874,58 @@ if (content) {
           submitBtn.textContent = "Error";
         }
       }
+      return;
+    }
+
+    const deletePedidoBtn = e.target.closest('[data-action="eliminar-pedido"]');
+    if (deletePedidoBtn) {
+      if (deletePedidoBtn.disabled) {
+        return;
+      }
+
+      const idPedido = deletePedidoBtn.dataset.id;
+      const confirmed = window.confirm("¿Seguro que deseas eliminar este pedido?");
+      if (!confirmed) return;
+
+      try {
+        await requestPedidoDelete(idPedido);
+        closePedidoActionsModal();
+        closePedidoEditModal();
+        closePedidoModal();
+        await loadRouteContent("pedidos");
+      } catch (error) {
+        alert(error.message);
+      }
+      return;
+    }
+
+    const historialActionModalBtn = e.target.closest('#historial-actions-modal [data-action]');
+    if (historialActionModalBtn) {
+      closeHistorialActionsModal();
+    }
+
+    const historialRowTrigger = e.target.closest('tr[data-historial-row="1"]');
+    if (
+      historialRowTrigger &&
+      !e.target.closest(".btn") &&
+      !e.target.closest("a, input, select, textarea, label, button")
+    ) {
+      fillHistorialActionsModal({
+        id: Number(historialRowTrigger.dataset.historialId ?? 0),
+        idVenta: Number(historialRowTrigger.dataset.ventaId ?? 0),
+        idPedido: Number(historialRowTrigger.dataset.pedidoId ?? 0),
+        cliente: historialRowTrigger.dataset.cliente ?? "",
+        totalLabel: historialRowTrigger.dataset.totalLabel ?? "$0.00",
+        estadoPago: historialRowTrigger.dataset.estadoPago ?? "-",
+        metodo: historialRowTrigger.dataset.metodo ?? "-",
+        fecha: historialRowTrigger.dataset.fecha ?? "-",
+        estadoHistorial: historialRowTrigger.dataset.estadoHistorial ?? "-",
+        canAnular: Boolean(historialRowTrigger.querySelector('[data-action="anular-historial"]')),
+        viewButton: historialRowTrigger.querySelector('[data-action="ver-historial"]'),
+        printButton: historialRowTrigger.querySelector('[data-action="imprimir-historial"]'),
+        anularButton: historialRowTrigger.querySelector('[data-action="anular-historial"]')
+      });
+      openHistorialActionsModal();
       return;
     }
 
@@ -3032,6 +4980,11 @@ if (content) {
     }
 
     const closeBtnModal = e.target.closest('[data-close]');
+    if (closeBtnModal?.dataset?.close === "pedido-actions-modal") {
+      closePedidoActionsModal();
+      return;
+    }
+
     if (closeBtnModal?.dataset?.close === "pedido-modal") {
       closePedidoModal();
       return;
@@ -3054,6 +5007,21 @@ if (content) {
 
     if (closeBtnModal?.dataset?.close === "venta-edit-modal") {
       closeVentaEditModal();
+      return;
+    }
+
+    if (closeBtnModal?.dataset?.close === "venta-abono-modal") {
+      closeVentaAbonoModal();
+      return;
+    }
+
+    if (closeBtnModal?.dataset?.close === "venta-detalle-modal") {
+      closeVentaDetalleModal();
+      return;
+    }
+
+    if (closeBtnModal?.dataset?.close === "venta-actions-modal") {
+      closeVentaActionsModal();
       return;
     }
 
@@ -3087,6 +5055,11 @@ if (content) {
       return;
     }
 
+    if (closeBtnModal?.dataset?.close === "developer-row-edit-modal") {
+      closeDeveloperEditModal();
+      return;
+    }
+
     if (closeBtnModal?.dataset?.close === "cliente-create-modal") {
       closeClienteCreateModal();
       return;
@@ -3097,12 +5070,33 @@ if (content) {
       return;
     }
 
+    if (closeBtnModal?.dataset?.close === "historial-actions-modal") {
+      closeHistorialActionsModal();
+      return;
+    }
+
     if (closeBtnModal?.dataset?.close === "historial-modal") {
       closeHistorialModal();
+      return;
     }
   });
 
   content.addEventListener("change", (e) => {
+    if (e.target.matches("#developer-table-select")) {
+      const tableName = String(e.target.value ?? "").trim();
+      if (!tableName) return;
+
+      setDeveloperFeedback("", "error");
+      requestDeveloperData(tableName)
+        .then((data) => {
+          renderDeveloperPanel(data);
+        })
+        .catch((error) => {
+          setDeveloperFeedback(error.message, "error");
+        });
+      return;
+    }
+
     if (e.target.matches("#home-ingresos-periodo")) {
       homeDashboardState.ingresosPeriodo = normalizeHomeIngresosPeriodo(e.target.value);
       refreshHomeDashboardData().catch((error) => console.error(error));
@@ -3121,6 +5115,16 @@ if (content) {
       ) {
         updatePedidoCreateTotal();
       }
+      return;
+    }
+
+    if (e.target.closest("#pedido-edit-form")) {
+      if (
+        e.target.matches(".pedido-item-producto") ||
+        e.target.matches(".pedido-item-cantidad")
+      ) {
+        updatePedidoEditTotal();
+      }
     }
   });
 
@@ -3129,10 +5133,71 @@ if (content) {
       if (e.target.matches(".pedido-item-cantidad")) {
         updatePedidoCreateTotal();
       }
+      return;
+    }
+
+    if (e.target.closest("#pedido-edit-form")) {
+      if (e.target.matches(".pedido-item-cantidad")) {
+        updatePedidoEditTotal();
+      }
     }
   });
 
   content.addEventListener("submit", async (e) => {
+    const developerEditForm = e.target.closest("#developer-row-edit-form");
+    if (developerEditForm) {
+      e.preventDefault();
+
+      const tableName = getDeveloperSelectedTable();
+      if (!tableName) {
+        setDeveloperEditFeedback("Debes seleccionar una tabla.", "error");
+        return;
+      }
+
+      if (!developerPanelState.editPrimaryKey || typeof developerPanelState.editPrimaryKey !== "object") {
+        setDeveloperEditFeedback("No se identificó la fila a editar.", "error");
+        return;
+      }
+
+      const payload = getDeveloperEditPayload();
+      const submitBtn = document.querySelector("#developer-row-edit-submit");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Guardando...";
+      }
+
+      setDeveloperEditFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("actualizar-fila-tabla", {
+          table: tableName,
+          primary_key: JSON.stringify(developerPanelState.editPrimaryKey),
+          fields: JSON.stringify(payload)
+        });
+
+        closeDeveloperEditModal();
+
+        if (result.logout) {
+          window.location.href = result.redirect || "?route=login";
+          return;
+        }
+
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+
+        setDeveloperFeedback(result.message || "Fila actualizada correctamente.", "success");
+      } catch (error) {
+        setDeveloperEditFeedback(error.message, "error");
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar cambios";
+        }
+      }
+      return;
+    }
+
     const perfilUpdateForm = e.target.closest("#perfil-update-form");
     if (perfilUpdateForm) {
       e.preventDefault();
@@ -3364,6 +5429,26 @@ if (content) {
         return;
       }
 
+      if (payload.abonoInicialRaw !== "") {
+        if (!Number.isFinite(payload.abonoInicial) || payload.abonoInicial < 0) {
+          setVentaCreateFeedback("El abono inicial debe ser un valor válido (0 o mayor).", "error");
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Guardar Venta";
+          }
+          return;
+        }
+
+        if (payload.abonoInicial > payload.total) {
+          setVentaCreateFeedback("El abono inicial no puede superar el total.", "error");
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Guardar Venta";
+          }
+          return;
+        }
+      }
+
       try {
         await requestVentaCreate(payload);
         closeVentaCreateModal();
@@ -3373,6 +5458,53 @@ if (content) {
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = "Guardar Venta";
+        }
+      }
+      return;
+    }
+
+    const ventaAbonoForm = e.target.closest("#venta-abono-form");
+    if (ventaAbonoForm) {
+      e.preventDefault();
+
+      const payload = getVentaAbonoPayload();
+      const submitBtn = document.querySelector("#venta-abono-submit");
+
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Guardando...";
+      }
+
+      setVentaAbonoFeedback("", "error");
+
+      if (payload.idVenta <= 0) {
+        setVentaAbonoFeedback("Venta inválida para registrar el abono.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Abono";
+        }
+        return;
+      }
+
+      if (!Number.isFinite(payload.monto) || payload.monto <= 0) {
+        setVentaAbonoFeedback("El monto del abono debe ser mayor a 0.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Abono";
+        }
+        return;
+      }
+
+      try {
+        const data = await requestVentaAbonoCreate(payload);
+        setVentaAbonoFeedback(data.message || "Abono registrado.", "success");
+        closeVentaAbonoModal();
+        await loadRouteContent("ventas");
+      } catch (error) {
+        setVentaAbonoFeedback(error.message, "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Abono";
         }
       }
       return;
@@ -3502,6 +5634,24 @@ if (content) {
         return;
       }
 
+      if (!Number.isInteger(payload.stockActual) || payload.stockActual < 0) {
+        setProductoEditFeedback("El stock actual debe ser un entero igual o mayor a 0.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+        return;
+      }
+
+      if (!Number.isInteger(payload.stockMinimo) || payload.stockMinimo < 0) {
+        setProductoEditFeedback("El stock mínimo debe ser un entero igual o mayor a 0.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Cambios";
+        }
+        return;
+      }
+
       try {
         await requestProductoUpdate(payload);
         closeProductoEditModal();
@@ -3541,6 +5691,24 @@ if (content) {
 
       if (!Number.isFinite(payload.precioBase) || payload.precioBase <= 0) {
         setProductoCreateFeedback("El precio base debe ser mayor a 0.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Producto";
+        }
+        return;
+      }
+
+      if (!Number.isInteger(payload.stockActual) || payload.stockActual < 0) {
+        setProductoCreateFeedback("El stock actual debe ser un entero igual o mayor a 0.", "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Guardar Producto";
+        }
+        return;
+      }
+
+      if (!Number.isInteger(payload.stockMinimo) || payload.stockMinimo < 0) {
+        setProductoCreateFeedback("El stock mínimo debe ser un entero igual o mayor a 0.", "error");
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = "Guardar Producto";
@@ -3676,6 +5844,16 @@ if (content) {
         return;
       }
 
+      const validationError = getPedidoCreateValidationError(payload);
+      if (validationError) {
+        setPedidoCreateFeedback(validationError, "error");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Crear Pedido";
+        }
+        return;
+      }
+
       try {
         await requestPedidoCreate(payload);
         closePedidoCreateModal();
@@ -3701,15 +5879,52 @@ if (content) {
       submitBtn.textContent = "Guardando...";
     }
 
-    const formData = new FormData(form);
-    const idPedido = String(formData.get("id") ?? "");
-    const estado = normalizeEstadoValue(formData.get("estado"));
+    setPedidoEditFeedback("", "error");
+
+    const payload = getPedidoEditPayload();
+
+    if (payload.id <= 0) {
+      setPedidoEditFeedback("ID de pedido inválido.", "error");
+      if (submitBtn) {
+        submitBtn.textContent = "Guardar cambios";
+        submitBtn.disabled = false;
+      }
+      return;
+    }
+
+    if (payload.idCliente <= 0) {
+      setPedidoEditFeedback("Debes seleccionar un cliente.", "error");
+      if (submitBtn) {
+        submitBtn.textContent = "Guardar cambios";
+        submitBtn.disabled = false;
+      }
+      return;
+    }
+
+    if (payload.items.length === 0) {
+      setPedidoEditFeedback("Debes agregar al menos un producto válido.", "error");
+      if (submitBtn) {
+        submitBtn.textContent = "Guardar cambios";
+        submitBtn.disabled = false;
+      }
+      return;
+    }
+
+    const validationError = getPedidoValidationError(payload, "actualizar");
+    if (validationError) {
+      setPedidoEditFeedback(validationError, "error");
+      if (submitBtn) {
+        submitBtn.textContent = "Guardar cambios";
+        submitBtn.disabled = false;
+      }
+      return;
+    }
 
     try {
-      const data = await updatePedidoEstado(idPedido, estado);
-      refreshPedidoEstadoInRow(data.id ?? idPedido, data.estado ?? estado);
-      setPedidoEditFeedback("Estado actualizado correctamente.", "success");
+      await requestPedidoUpdate(payload);
+      closePedidoActionsModal();
       closePedidoEditModal();
+      await loadRouteContent("pedidos");
     } catch (error) {
       setPedidoEditFeedback(error.message, "error");
       if (submitBtn) {
@@ -3722,19 +5937,25 @@ if (content) {
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
+    closePedidoActionsModal();
     closePedidoModal();
     closePedidoEditModal();
     closePedidoCreateModal();
     closeVentaCreateModal();
     closeVentaEditModal();
+    closeVentaAbonoModal();
+    closeVentaDetalleModal();
+    closeVentaActionsModal();
     closeCategoriaCreateModal();
     closeCategoriaEditModal();
     closeProductoCreateModal();
     closeProductoEditModal();
     closePerfilCreateModal();
     closePerfilEditModal();
+    closeDeveloperEditModal();
     closeClienteCreateModal();
     closeClienteEditModal();
+    closeHistorialActionsModal();
     closeHistorialModal();
   }
 });

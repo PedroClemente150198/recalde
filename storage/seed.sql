@@ -2,6 +2,9 @@
 -- Usuario inicial:
 -- usuario: admin
 -- contraseña: admin123
+-- Usuario desarrollador:
+-- usuario: developer
+-- contraseña: developer123
 
 INSERT INTO roles (id, rol)
 VALUES
@@ -21,6 +24,19 @@ WHERE NOT EXISTS (
     SELECT 1
     FROM usuarios
     WHERE usuario = 'admin'
+);
+
+INSERT INTO usuarios (id_rol, usuario, correo, contrasena, estado)
+SELECT
+    2,
+    'developer',
+    'developer@recalde.local',
+    '$2y$10$tX6xINu4zaDnm7acFydFGe8EUoXzsZjMaxnOtt4lQLk5VRqgUtCaq',
+    'activo'
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM usuarios
+    WHERE usuario = 'developer'
 );
 
 INSERT INTO categorias (tipo_categoria, estado)

@@ -3,7 +3,16 @@ $info = $info ?? [];
 $resumen = $resumen ?? [];
 $integridad = $integridad ?? [];
 $usuariosCredenciales = $usuariosCredenciales ?? [];
+$tables = $tables ?? [];
+$tableManager = $tableManager ?? [];
+$preferences = $preferences ?? [];
 $rolActual = $rolActual ?? ($info['rolActual'] ?? '-');
+$ventasShowActionsColumn = !array_key_exists('ventasShowActionsColumn', $preferences)
+    ? true
+    : (bool) $preferences['ventasShowActionsColumn'];
+$historialShowActionsColumn = !array_key_exists('historialShowActionsColumn', $preferences)
+    ? true
+    : (bool) $preferences['historialShowActionsColumn'];
 
 $dbStatus = strtolower((string) ($info['dbStatus'] ?? 'error'));
 $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
@@ -130,6 +139,124 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
 
     <section class="developer-section">
         <div class="developer-section-head">
+            <h2>Preferencias de UI</h2>
+            <p>Ajustes globales: lo que cambies aquí se aplica a todos los roles del dashboard.</p>
+        </div>
+
+        <div class="developer-check-grid">
+            <article class="developer-check developer-ui-card">
+                <small>Ventas · Lista de gestión</small>
+                <strong id="developer-ui-ventas-actions-state"><?= $ventasShowActionsColumn ? 'Visible' : 'Oculta' ?></strong>
+                <p class="developer-ui-copy" id="developer-ui-ventas-actions-copy">
+                    <?= $ventasShowActionsColumn
+                        ? 'La columna de acciones se muestra en el listado principal de ventas para todos los roles.'
+                        : 'La columna de acciones está oculta globalmente; la gestión sigue disponible al hacer clic en la fila.' ?>
+                </p>
+                <div class="developer-actions">
+                    <button
+                        class="btn dev-btn <?= $ventasShowActionsColumn ? 'danger subtle' : 'primary' ?>"
+                        type="button"
+                        data-action="developer-toggle-ventas-actions-column"
+                        data-enabled="<?= $ventasShowActionsColumn ? '1' : '0' ?>"
+                    >
+                        <?= $ventasShowActionsColumn ? 'Ocultar columna' : 'Mostrar columna' ?>
+                    </button>
+                </div>
+            </article>
+
+            <article class="developer-check developer-ui-card">
+                <small>Historial · Lista documental</small>
+                <strong id="developer-ui-historial-actions-state"><?= $historialShowActionsColumn ? 'Visible' : 'Oculta' ?></strong>
+                <p class="developer-ui-copy" id="developer-ui-historial-actions-copy">
+                    <?= $historialShowActionsColumn
+                        ? 'La columna de acciones se muestra en el listado principal del historial para todos los roles.'
+                        : 'La columna de acciones está oculta globalmente; la gestión sigue disponible al hacer clic en la fila.' ?>
+                </p>
+                <div class="developer-actions">
+                    <button
+                        class="btn dev-btn <?= $historialShowActionsColumn ? 'danger subtle' : 'primary' ?>"
+                        type="button"
+                        data-action="developer-toggle-historial-actions-column"
+                        data-enabled="<?= $historialShowActionsColumn ? '1' : '0' ?>"
+                    >
+                        <?= $historialShowActionsColumn ? 'Ocultar columna' : 'Mostrar columna' ?>
+                    </button>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="developer-section">
+        <div class="developer-section-head">
+            <h2>Gestor de Tablas</h2>
+            <p>Consulta, edita, elimina filas y vacía tablas operativas desde el rol desarrollador.</p>
+        </div>
+
+        <div class="developer-table-controls">
+            <label class="developer-field-inline" for="developer-table-select">
+                <span>Tabla activa</span>
+                <select id="developer-table-select">
+                    <?php foreach ($tables as $item): ?>
+                        <?php $tableName = (string) ($item['table'] ?? ''); ?>
+                        <option
+                            value="<?= htmlspecialchars($tableName, ENT_QUOTES, 'UTF-8') ?>"
+                            <?= $tableName === (string) ($tableManager['selectedTable'] ?? '') ? 'selected' : '' ?>
+                        >
+                            <?= htmlspecialchars($tableName, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </label>
+
+            <div class="developer-actions developer-actions-inline">
+                <button class="btn dev-btn secondary" type="button" data-action="developer-refresh-table">
+                    Actualizar tabla
+                </button>
+                <button class="btn dev-btn danger" type="button" data-action="developer-clear-table">
+                    Vaciar tabla
+                </button>
+            </div>
+        </div>
+
+        <div class="developer-table-catalog" id="developer-table-catalog"></div>
+
+        <div class="developer-table-meta">
+            <article>
+                <small>Registros</small>
+                <strong id="developer-table-row-count">0</strong>
+            </article>
+            <article>
+                <small>Columnas</small>
+                <strong id="developer-table-column-count">0</strong>
+            </article>
+            <article>
+                <small>Clave primaria</small>
+                <strong id="developer-table-primary-key">-</strong>
+            </article>
+            <article>
+                <small>Límite de vista</small>
+                <strong id="developer-table-limit">25</strong>
+            </article>
+        </div>
+
+        <p class="developer-table-note">
+            El vaciado masivo se bloquea en tablas críticas del sistema. Los borrados respetan claves foráneas activas.
+        </p>
+
+        <div class="developer-table-wrap">
+            <table class="developer-records-table" data-page-size="10">
+                <thead id="developer-records-head"></thead>
+                <tbody id="developer-records-body">
+                    <tr>
+                        <td colspan="2" style="text-align:center;">Cargando tabla seleccionada...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="developer-section">
+        <div class="developer-section-head">
             <h2>Usuarios y Credenciales</h2>
             <p>Vista técnica del valor almacenado en `usuarios.contrasena`.</p>
         </div>
@@ -192,10 +319,39 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
     </section>
 </div>
 
+<div class="developer-modal" id="developer-row-edit-modal" hidden>
+    <div class="developer-modal-backdrop" data-close="developer-row-edit-modal"></div>
+    <div class="developer-modal-content" role="dialog" aria-modal="true" aria-labelledby="developer-row-edit-title">
+        <div class="developer-modal-header">
+            <h3 id="developer-row-edit-title">Editar Registro</h3>
+            <button class="btn dev-btn close" type="button" data-close="developer-row-edit-modal" aria-label="Cerrar">x</button>
+        </div>
+
+        <form id="developer-row-edit-form" class="developer-form">
+            <div class="developer-form-grid" id="developer-row-edit-fields"></div>
+
+            <div class="developer-primary-summary">
+                <span>Clave primaria</span>
+                <div id="developer-row-edit-primary"></div>
+            </div>
+
+            <p class="developer-modal-feedback" id="developer-row-edit-feedback" hidden></p>
+
+            <div class="developer-actions developer-actions-inline">
+                <button class="btn dev-btn ghost" type="button" data-close="developer-row-edit-modal">Cancelar</button>
+                <button class="btn dev-btn primary" type="submit" id="developer-row-edit-submit">Guardar cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script id="developer-panel-data" type="application/json"><?= json_encode([
     'info' => $info,
     'resumen' => $resumen,
     'integridad' => $integridad,
     'usuariosCredenciales' => $usuariosCredenciales,
+    'tables' => $tables,
+    'tableManager' => $tableManager,
+    'preferences' => $preferences,
     'rolActual' => $rolActual
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?></script>

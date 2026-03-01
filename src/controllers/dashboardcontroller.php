@@ -41,6 +41,24 @@ class DashboardController extends Controller{
         ], JSON_UNESCAPED_UNICODE);
     }
 
+    public function dashboardUiData() {
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'data' => $this->getDeveloperUiPreferences()
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
     public function developer() {
         if (!$this->isDeveloperSession()) {
             $this->redirect('?route=home');
@@ -48,8 +66,8 @@ class DashboardController extends Controller{
         }
 
         $dashboardModel = new Dashboard();
-        $panel = $dashboardModel->getDeveloperOverview();
-        $panel['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+        $selectedTable = trim((string) ($_GET['table'] ?? ''));
+        $panel = $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
 
         $this->render('dashboard/developer/index', $panel);
     }
@@ -75,9 +93,9 @@ class DashboardController extends Controller{
             return;
         }
 
+        $selectedTable = trim((string) ($_GET['table'] ?? ''));
         $dashboardModel = new Dashboard();
-        $data = $dashboardModel->getDeveloperOverview();
-        $data['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+        $data = $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
 
         echo json_encode([
             'ok' => true,
@@ -107,6 +125,7 @@ class DashboardController extends Controller{
         }
 
         $action = strtolower(trim((string) ($_POST['action'] ?? '')));
+        $selectedTable = trim((string) ($_POST['table'] ?? ''));
         $dashboardModel = new Dashboard();
 
         switch ($action) {
@@ -122,8 +141,7 @@ class DashboardController extends Controller{
                     return;
                 }
 
-                $data = $dashboardModel->getDeveloperOverview();
-                $data['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+                $data = $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
 
                 echo json_encode([
                     'ok' => true,
@@ -155,8 +173,7 @@ class DashboardController extends Controller{
                     return;
                 }
 
-                $data = $dashboardModel->getDeveloperOverview();
-                $data['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+                $data = $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
 
                 $message = sprintf(
                     "Contraseña temporal de %s: %s",
@@ -177,6 +194,193 @@ class DashboardController extends Controller{
                     'data' => $data
                 ], JSON_UNESCAPED_UNICODE);
                 return;
+
+            case 'vaciar-tabla':
+                if ($selectedTable === '') {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Debes seleccionar una tabla.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $deletedRows = $dashboardModel->clearDeveloperTable($selectedTable);
+                if ($deletedRows === null) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => $dashboardModel->getLastError() ?? 'No se pudo vaciar la tabla.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $logout = $this->syncDeveloperSessionAfterTableMutation($selectedTable);
+                $data = $logout ? null : $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
+
+                echo json_encode([
+                    'ok' => true,
+                    'message' => "Tabla {$selectedTable} vaciada correctamente. Filas afectadas: {$deletedRows}.",
+                    'deleted_rows' => (int) $deletedRows,
+                    'logout' => $logout,
+                    'redirect' => $logout ? '?route=login' : null,
+                    'data' => $data
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+
+            case 'eliminar-fila-tabla':
+                if ($selectedTable === '') {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Debes seleccionar una tabla.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $primaryKey = $this->decodeDeveloperPayload((string) ($_POST['primary_key'] ?? ''));
+                if (!is_array($primaryKey) || $primaryKey === []) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Clave primaria invalida para eliminar la fila.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $targetUserId = $selectedTable === 'usuarios'
+                    ? (int) ($primaryKey['id'] ?? 0)
+                    : 0;
+                $sessionUserId = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+                if ($selectedTable === 'usuarios' && $targetUserId > 0 && $targetUserId === $sessionUserId) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'No puedes eliminar tu propio usuario desde el panel Developer.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $deleted = $dashboardModel->deleteDeveloperTableRow($selectedTable, $primaryKey);
+                if (!$deleted) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => $dashboardModel->getLastError() ?? 'No se pudo eliminar la fila.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $logout = $this->syncDeveloperSessionAfterTableMutation($selectedTable, $primaryKey);
+                $data = $logout ? null : $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
+
+                echo json_encode([
+                    'ok' => true,
+                    'message' => 'Fila eliminada correctamente.',
+                    'logout' => $logout,
+                    'redirect' => $logout ? '?route=login' : null,
+                    'data' => $data
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+
+            case 'actualizar-fila-tabla':
+                if ($selectedTable === '') {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Debes seleccionar una tabla.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $primaryKey = $this->decodeDeveloperPayload((string) ($_POST['primary_key'] ?? ''));
+                $fields = $this->decodeDeveloperPayload((string) ($_POST['fields'] ?? ''));
+
+                if (!is_array($primaryKey) || $primaryKey === []) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Clave primaria invalida para actualizar la fila.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                if (!is_array($fields) || $fields === []) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'No se recibieron datos validos para actualizar.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $updated = $dashboardModel->updateDeveloperTableRow($selectedTable, $primaryKey, $fields);
+                if (!$updated) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => $dashboardModel->getLastError() ?? 'No se pudo actualizar la fila.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $logout = $this->syncDeveloperSessionAfterTableMutation($selectedTable, $primaryKey);
+                $data = $logout ? null : $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
+
+                echo json_encode([
+                    'ok' => true,
+                    'message' => 'Fila actualizada correctamente.',
+                    'logout' => $logout,
+                    'redirect' => $logout ? '?route=login' : null,
+                    'data' => $data
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+
+            case 'actualizar-preferencia-ui':
+                $key = strtolower(trim((string) ($_POST['key'] ?? '')));
+                $rawValue = strtolower(trim((string) ($_POST['value'] ?? '')));
+
+                if (!in_array($key, ['ventas_show_actions_column', 'historial_show_actions_column'], true)) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Preferencia UI no soportada.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                if (!in_array($rawValue, ['1', '0', 'true', 'false'], true)) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Valor inválido para la preferencia UI.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $enabled = in_array($rawValue, ['1', 'true'], true);
+                if (!$this->setDeveloperUiPreference($key, $enabled, $dashboardModel)) {
+                    http_response_code(500);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => $dashboardModel->getLastError() ?? 'No se pudo guardar la preferencia UI.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $data = $this->buildDeveloperPanelData($dashboardModel, $selectedTable);
+                $preferenceLabel = $key === 'historial_show_actions_column'
+                    ? 'La columna Acciones de historial'
+                    : 'La columna Acciones de ventas';
+
+                echo json_encode([
+                    'ok' => true,
+                    'message' => $enabled
+                        ? $preferenceLabel . ' ahora está visible.'
+                        : $preferenceLabel . ' ahora está oculta.',
+                    'data' => $data
+                ], JSON_UNESCAPED_UNICODE);
+                return;
         }
 
         http_response_code(400);
@@ -188,10 +392,19 @@ class DashboardController extends Controller{
 
     private function buildHomePayload(string $periodoIngresos = 'mes'): array {
         $dashboardModel = new Dashboard();
+        $ventasModel = new Ventas();
+        $historialModel = new Historial();
         $periodo = $this->normalizePeriodoIngresos($periodoIngresos);
+
+        $ventasModel->syncPedidosEstadoPorCartera();
 
         $serieIngresos = $dashboardModel->getIngresosSerie($periodo);
         $pedidosPorEstado = $dashboardModel->getPedidosPorEstado();
+        $resumenCartera = $ventasModel->getResumenCartera();
+        $clientesConDeuda = $ventasModel->getClientesConDeuda(5);
+        $ultimasVentas = $ventasModel->getUltimasVentas(5);
+        $resumenHistorial = $historialModel->getResumenGeneral();
+        $ultimosHistorial = $historialModel->getUltimosRegistros(5);
 
         $labelsIngresos = [];
         $datosIngresos = [];
@@ -211,7 +424,7 @@ class DashboardController extends Controller{
             "ingresosTotales" => (float) $dashboardModel->getIngresosTotales(),
             "totalPedidos" => (int) $dashboardModel->getTotalPedidos(),
             "topProductos" => $dashboardModel->getProductosMasVendidos(),
-            "ultimasVentas" => $dashboardModel->getUltimasVentas(),
+            "ultimasVentas" => $ultimasVentas,
             "periodoIngresos" => $periodo,
             "labelsIngresos" => $labelsIngresos,
             "datosIngresos" => $datosIngresos,
@@ -219,6 +432,10 @@ class DashboardController extends Controller{
             "labelsMes" => $labelsIngresos,
             "datosVentasMes" => $datosIngresos,
             "pedidosEstados" => $pedidosEstados,
+            "carteraResumen" => $resumenCartera,
+            "clientesConDeuda" => $clientesConDeuda,
+            "historialResumen" => $resumenHistorial,
+            "ultimosHistorial" => $ultimosHistorial,
             "ultimaActualizacion" => date('Y-m-d H:i:s')
         ];
     }
@@ -252,11 +469,18 @@ class DashboardController extends Controller{
     
     public function ventas(){
         $ventasModel = new Ventas();
+        $ventasModel->syncPedidosEstadoPorCartera();
         $listadoVentas = $ventasModel->getAllVentas();
         $pedidosDisponibles = $ventasModel->getPedidosDisponiblesParaVenta();
+        $resumenCartera = $ventasModel->getResumenCartera();
+        $clientesConDeuda = $ventasModel->getClientesConDeuda();
+        $preferences = $this->getDeveloperUiPreferences();
         $this->render('dashboard/ventas/index', [
             'ventas' => $listadoVentas,
-            'pedidosDisponibles' => $pedidosDisponibles
+            'pedidosDisponibles' => $pedidosDisponibles,
+            'resumenCartera' => $resumenCartera,
+            'clientesConDeuda' => $clientesConDeuda,
+            'showActionsColumn' => (bool) ($preferences['ventasShowActionsColumn'] ?? true)
         ]);
     }
 
@@ -275,6 +499,7 @@ class DashboardController extends Controller{
         $idPedido = filter_input(INPUT_POST, 'id_pedido', FILTER_VALIDATE_INT);
         $totalRaw = str_replace(',', '.', trim((string) ($_POST['total'] ?? '0')));
         $metodoPago = strtolower(trim((string) ($_POST['metodo_pago'] ?? 'efectivo')));
+        $abonoInicialRaw = str_replace(',', '.', trim((string) ($_POST['abono_inicial'] ?? '')));
         $usuarioRegistro = (int) ($_SESSION['usuario']['user_id'] ?? 0);
 
         if (!$idPedido) {
@@ -295,12 +520,26 @@ class DashboardController extends Controller{
             return;
         }
 
+        $abonoInicial = null;
+        if ($abonoInicialRaw !== '') {
+            if (!is_numeric($abonoInicialRaw)) {
+                http_response_code(400);
+                echo json_encode([
+                    'ok' => false,
+                    'message' => 'Abono inicial inválido.'
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+            $abonoInicial = (float) $abonoInicialRaw;
+        }
+
         $ventasModel = new Ventas();
         $idVenta = $ventasModel->crearVentaDesdePedido(
             (int) $idPedido,
             (float) $totalRaw,
             $metodoPago,
-            $usuarioRegistro > 0 ? $usuarioRegistro : null
+            $usuarioRegistro > 0 ? $usuarioRegistro : null,
+            $abonoInicial
         );
 
         if (!$idVenta) {
@@ -316,6 +555,114 @@ class DashboardController extends Controller{
             'ok' => true,
             'message' => 'Venta registrada correctamente.',
             'id' => (int) $idVenta
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function ventaDetalle(){
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $idVenta = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+        if (!$idVenta) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'ID de venta inválido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $ventasModel = new Ventas();
+        $venta = $ventasModel->getVentaById((int) $idVenta);
+        if (!$venta) {
+            http_response_code(404);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Venta no encontrada.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $abonos = $ventasModel->getAbonosByVenta((int) $idVenta);
+
+        echo json_encode([
+            'ok' => true,
+            'venta' => $venta,
+            'abonos' => $abonos
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function ventaAbonoCrear(){
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $idVenta = filter_input(INPUT_POST, 'id_venta', FILTER_VALIDATE_INT);
+        $montoRaw = str_replace(',', '.', trim((string) ($_POST['monto'] ?? '0')));
+        $metodoPago = strtolower(trim((string) ($_POST['metodo_pago'] ?? 'efectivo')));
+        $observacion = trim((string) ($_POST['observacion'] ?? ''));
+        $usuarioRegistro = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+
+        if (!$idVenta) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Venta inválida para registrar abono.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if (!is_numeric($montoRaw)) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Monto de abono inválido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $ventasModel = new Ventas();
+        $idAbono = $ventasModel->registrarAbono(
+            (int) $idVenta,
+            (float) $montoRaw,
+            $metodoPago,
+            $observacion !== '' ? $observacion : null,
+            $usuarioRegistro > 0 ? $usuarioRegistro : null
+        );
+
+        if (!$idAbono) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => $ventasModel->getLastError() ?? 'No se pudo registrar el abono.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $ventaActualizada = $ventasModel->getVentaById((int) $idVenta);
+        $abonos = $ventasModel->getAbonosByVenta((int) $idVenta);
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Abono registrado correctamente.',
+            'id_abono' => (int) $idAbono,
+            'venta' => $ventaActualizada,
+            'abonos' => $abonos
         ], JSON_UNESCAPED_UNICODE);
     }
 
@@ -854,6 +1201,9 @@ class DashboardController extends Controller{
     }
 
     public function pedidos(){
+        $ventasModel = new Ventas();
+        $ventasModel->syncPedidosEstadoPorCartera();
+
         $pedidosModel = new Pedidos();
         $listadoPedidos = $pedidosModel->getPedidos();
         $clientes = $pedidosModel->getClientesParaPedido();
@@ -883,7 +1233,7 @@ class DashboardController extends Controller{
         $itemsRaw = (string) ($_POST['items'] ?? '[]');
         $items = json_decode($itemsRaw, true);
 
-        $estadosPermitidos = ['pendiente', 'procesando', 'listo', 'entregado', 'cancelado'];
+        $estadosPermitidos = ['pendiente', 'procesando', 'listo', 'entregado'];
         if (!$idCliente || !in_array($estado, $estadosPermitidos, true)) {
             http_response_code(400);
             echo json_encode([
@@ -934,6 +1284,9 @@ class DashboardController extends Controller{
             return;
         }
 
+        $ventasModel = new Ventas();
+        $ventasModel->syncPedidosEstadoPorCartera((int) $idPedido);
+
         $pedidosModel = new Pedidos();
         $pedido = $pedidosModel->getPedidoById($idPedido);
 
@@ -947,6 +1300,15 @@ class DashboardController extends Controller{
         }
 
         $detalles = $pedidosModel->getDetallePedido($idPedido);
+        $medidasPorDetalle = $pedidosModel->getMedidasPorPedido((int) $idPedido);
+
+        foreach ($detalles as &$detalle) {
+            $idDetalle = (int) ($detalle['id'] ?? 0);
+            $detalle['medidas'] = $idDetalle > 0
+                ? ($medidasPorDetalle[$idDetalle] ?? [])
+                : [];
+        }
+        unset($detalle);
 
         echo json_encode([
             'ok' => true,
@@ -968,9 +1330,14 @@ class DashboardController extends Controller{
         }
 
         $idPedido = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        $idCliente = filter_input(INPUT_POST, 'id_cliente', FILTER_VALIDATE_INT);
         $estado = trim((string) ($_POST['estado'] ?? ''));
+        $itemsRaw = array_key_exists('items', $_POST)
+            ? (string) ($_POST['items'] ?? '[]')
+            : '';
+        $items = $itemsRaw !== '' ? json_decode($itemsRaw, true) : null;
 
-        $estadosPermitidos = ['pendiente', 'procesando', 'listo', 'entregado', 'cancelado'];
+        $estadosPermitidos = ['pendiente', 'procesando', 'listo', 'entregado'];
         if (!$idPedido || !in_array($estado, $estadosPermitidos, true)) {
             http_response_code(400);
             echo json_encode([
@@ -981,6 +1348,8 @@ class DashboardController extends Controller{
         }
 
         $pedidosModel = new Pedidos();
+        $ventasModel = new Ventas();
+        $ventasModel->syncPedidosEstadoPorCartera((int) $idPedido);
         $pedido = $pedidosModel->getPedidoById($idPedido);
         if (!$pedido) {
             http_response_code(404);
@@ -991,29 +1360,98 @@ class DashboardController extends Controller{
             return;
         }
 
-        $actualizado = $pedidosModel->actualizarEstado($idPedido, $estado);
+        $actualizado = false;
+        $mensajeError = 'No se pudo actualizar el pedido.';
+
+        if ($itemsRaw !== '') {
+            if (!$idCliente || !is_array($items) || count($items) === 0) {
+                http_response_code(400);
+                echo json_encode([
+                    'ok' => false,
+                    'message' => 'Debes indicar cliente, estado y al menos un producto para actualizar el pedido.'
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            $actualizado = $pedidosModel->actualizarPedidoConDetalles((int) $idPedido, (int) $idCliente, $estado, $items);
+            $mensajeError = $pedidosModel->getLastError() ?? 'No se pudo actualizar el pedido.';
+        } else {
+            $actualizado = $pedidosModel->actualizarEstado($idPedido, $estado);
+        }
+
         if (!$actualizado) {
-            http_response_code(500);
+            http_response_code(400);
             echo json_encode([
                 'ok' => false,
-                'message' => 'No se pudo actualizar el estado del pedido.'
+                'message' => $mensajeError
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $ventasModel->syncPedidosEstadoPorCartera((int) $idPedido);
+        $pedidoActualizado = $pedidosModel->getPedidoById((int) $idPedido);
+        $estadoActual = (string) ($pedidoActualizado['estado'] ?? $estado);
+
+        echo json_encode([
+            'ok' => true,
+            'message' => 'Pedido actualizado correctamente.',
+            'id' => $idPedido,
+            'estado' => $estadoActual,
+            'total' => (float) ($pedidoActualizado['total'] ?? 0)
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function pedidoEliminar(){
+        header('Content-Type: application/json; charset=UTF-8');
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Método no permitido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $idPedido = filter_input(INPUT_POST, 'id', FILTER_VALIDATE_INT);
+        if (!$idPedido) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'ID de pedido inválido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $pedidosModel = new Pedidos();
+        $eliminado = $pedidosModel->eliminarPedido((int) $idPedido);
+
+        if (!$eliminado) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => $pedidosModel->getLastError() ?? 'No se pudo eliminar el pedido.'
             ], JSON_UNESCAPED_UNICODE);
             return;
         }
 
         echo json_encode([
             'ok' => true,
-            'message' => 'Pedido actualizado correctamente.',
-            'id' => $idPedido,
-            'estado' => $estado
+            'message' => 'Pedido eliminado correctamente.',
+            'id' => (int) $idPedido
         ], JSON_UNESCAPED_UNICODE);
     }
 
     public function historial(){
+        $ventasModel = new Ventas();
+        $ventasModel->syncPedidosEstadoPorCartera();
+
         $historialModel = new Historial();
         $listadoHistorial = $historialModel->getHistorial();
+        $preferences = $this->getDeveloperUiPreferences();
         $this->render('dashboard/historial/index', [
-            'historial' => $listadoHistorial
+            'historial' => $listadoHistorial,
+            'showActionsColumn' => (bool) ($preferences['historialShowActionsColumn'] ?? true)
         ]);
     }
 
@@ -1120,7 +1558,8 @@ class DashboardController extends Controller{
         $this->render('dashboard/inventario/index',[
             'inventario' => $listadoInventario,
             'categorias' => $categorias,
-            'categoriasListado' => $categoriasListado
+            'categoriasListado' => $categoriasListado,
+            'stockColumnsEnabled' => $inventarioModel->hasRealStockColumns()
         ]);
     }
 
@@ -1141,7 +1580,15 @@ class DashboardController extends Controller{
         $nombre = trim((string) ($_POST['nombre_producto'] ?? ''));
         $descripcion = trim((string) ($_POST['descripcion'] ?? ''));
         $precioRaw = str_replace(',', '.', trim((string) ($_POST['precio_base'] ?? '0')));
+        $stockActualRaw = trim((string) ($_POST['stock_actual'] ?? '0'));
+        $stockMinimoRaw = trim((string) ($_POST['stock_minimo'] ?? '5'));
         $estado = strtolower(trim((string) ($_POST['estado'] ?? 'activo')));
+        $stockActual = filter_var($stockActualRaw, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 0]
+        ]);
+        $stockMinimo = filter_var($stockMinimoRaw, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 0]
+        ]);
 
         if ($idCategoriaRaw !== '' && $idCategoria === false) {
             http_response_code(400);
@@ -1161,13 +1608,33 @@ class DashboardController extends Controller{
             return;
         }
 
+        if ($stockActual === false) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Stock actual inválido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if ($stockMinimo === false) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Stock mínimo inválido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
         $inventarioModel = new Inventario();
         $idProducto = $inventarioModel->crearProducto(
             $idCategoria === false ? null : ($idCategoria === null ? null : (int) $idCategoria),
             $nombre,
             $descripcion,
             (float) $precioRaw,
-            $estado
+            $estado,
+            (int) $stockActual,
+            (int) $stockMinimo
         );
 
         if (!$idProducto) {
@@ -1204,7 +1671,15 @@ class DashboardController extends Controller{
         $nombre = trim((string) ($_POST['nombre_producto'] ?? ''));
         $descripcion = trim((string) ($_POST['descripcion'] ?? ''));
         $precioRaw = str_replace(',', '.', trim((string) ($_POST['precio_base'] ?? '0')));
+        $stockActualRaw = trim((string) ($_POST['stock_actual'] ?? '0'));
+        $stockMinimoRaw = trim((string) ($_POST['stock_minimo'] ?? '5'));
         $estado = strtolower(trim((string) ($_POST['estado'] ?? 'activo')));
+        $stockActual = filter_var($stockActualRaw, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 0]
+        ]);
+        $stockMinimo = filter_var($stockMinimoRaw, FILTER_VALIDATE_INT, [
+            'options' => ['min_range' => 0]
+        ]);
 
         if (!$idProducto) {
             http_response_code(400);
@@ -1233,6 +1708,24 @@ class DashboardController extends Controller{
             return;
         }
 
+        if ($stockActual === false) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Stock actual inválido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        if ($stockMinimo === false) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'message' => 'Stock mínimo inválido.'
+            ], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
         $inventarioModel = new Inventario();
         $actualizado = $inventarioModel->actualizarProducto(
             (int) $idProducto,
@@ -1240,7 +1733,9 @@ class DashboardController extends Controller{
             $nombre,
             $descripcion,
             (float) $precioRaw,
-            $estado
+            $estado,
+            (int) $stockActual,
+            (int) $stockMinimo
         );
 
         if (!$actualizado) {
@@ -1427,6 +1922,113 @@ class DashboardController extends Controller{
     private function isDeveloperSession(): bool {
         $rol = strtolower(trim((string) ($_SESSION['usuario']['nombre_rol'] ?? '')));
         return in_array($rol, ['desarrollador', 'developer'], true);
+    }
+
+    private function buildDeveloperPanelData(Dashboard $dashboardModel, ?string $selectedTable = null): array {
+        $this->migrateLegacyDeveloperUiSession($dashboardModel);
+        $panel = $dashboardModel->getDeveloperOverview($selectedTable);
+        $panel['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+        $panel['preferences'] = $this->getDeveloperUiPreferences($dashboardModel);
+        return $panel;
+    }
+
+    private function getDeveloperUiPreferences(?Dashboard $dashboardModel = null): array {
+        $model = $dashboardModel ?? new Dashboard();
+        $this->migrateLegacyDeveloperUiSession($model);
+        return $model->getSharedUiPreferences();
+    }
+
+    private function setDeveloperUiPreference(string $key, bool $value, ?Dashboard $dashboardModel = null): bool {
+        $model = $dashboardModel ?? new Dashboard();
+        $updatedBy = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+
+        $saved = $model->saveSharedUiPreference($key, $value, $updatedBy > 0 ? $updatedBy : null);
+        if (!$saved) {
+            return false;
+        }
+
+        if (!isset($_SESSION['developer_ui']) || !is_array($_SESSION['developer_ui'])) {
+            $_SESSION['developer_ui'] = [];
+        }
+
+        if (in_array($key, ['ventas_show_actions_column', 'historial_show_actions_column'], true)) {
+            $_SESSION['developer_ui'][$key] = $value;
+        }
+
+        $_SESSION['developer_ui_global_migrated'] = true;
+        return true;
+    }
+
+    private function migrateLegacyDeveloperUiSession(?Dashboard $dashboardModel = null): void {
+        if (!$this->isDeveloperSession()) {
+            return;
+        }
+
+        if (!isset($_SESSION['developer_ui']) || !is_array($_SESSION['developer_ui'])) {
+            return;
+        }
+
+        if (!empty($_SESSION['developer_ui_global_migrated'])) {
+            return;
+        }
+
+        $model = $dashboardModel ?? new Dashboard();
+        foreach (['ventas_show_actions_column', 'historial_show_actions_column'] as $key) {
+            if (!array_key_exists($key, $_SESSION['developer_ui'])) {
+                continue;
+            }
+
+            $rawValue = $_SESSION['developer_ui'][$key];
+            $normalized = filter_var($rawValue, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $value = $normalized === null ? (bool) $rawValue : $normalized;
+
+            $updatedBy = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+            $model->saveSharedUiPreference($key, $value, $updatedBy > 0 ? $updatedBy : null);
+        }
+
+        $_SESSION['developer_ui_global_migrated'] = true;
+    }
+
+    private function decodeDeveloperPayload(string $payload): ?array {
+        $payload = trim($payload);
+        if ($payload === '') {
+            return null;
+        }
+
+        $decoded = json_decode($payload, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function syncDeveloperSessionAfterTableMutation(string $tableName, array $primaryKey = []): bool {
+        $idSesion = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+        if ($idSesion <= 0) {
+            return false;
+        }
+
+        if ($tableName === 'usuarios') {
+            $targetId = (int) ($primaryKey['id'] ?? 0);
+            if ($targetId > 0 && $targetId !== $idSesion) {
+                return false;
+            }
+
+            $usuariosModel = new Usuarios();
+            $usuario = $usuariosModel->getUserById($idSesion);
+            if (!$usuario) {
+                $_SESSION = [];
+                session_destroy();
+                return true;
+            }
+
+            unset($usuario['contrasena']);
+            $_SESSION['usuario'] = $usuario;
+            return false;
+        }
+
+        if ($tableName === 'roles') {
+            $this->refreshSessionUser($idSesion);
+        }
+
+        return false;
     }
 
     private function refreshSessionUser(int $idUsuario): void {

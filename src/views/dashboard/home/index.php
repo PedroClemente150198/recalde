@@ -8,6 +8,10 @@ $homeData = [
     'ingresosTotales' => (float) ($ingresosTotales ?? 0),
     'topProductos' => $topProductos,
     'ultimasVentas' => $ultimasVentas,
+    'carteraResumen' => $carteraResumen ?? [],
+    'clientesConDeuda' => $clientesConDeuda ?? [],
+    'historialResumen' => $historialResumen ?? [],
+    'ultimosHistorial' => $ultimosHistorial ?? [],
     'periodoIngresos' => $periodoIngresos ?? 'mes',
     'labelsIngresos' => $labelsIngresos ?? ($labelsMes ?? []),
     'datosIngresos' => $datosIngresos ?? ($datosVentasMes ?? []),
@@ -54,6 +58,17 @@ $listo = (int) ($estadoPedidos['listo'] ?? 0);
 $entregado = (int) ($estadoPedidos['entregado'] ?? 0);
 $cancelado = (int) ($estadoPedidos['cancelado'] ?? 0);
 $activos = $pendiente + $procesando + $listo;
+
+$cartera = $homeData['carteraResumen'] ?? [];
+$clientesConDeuda = $homeData['clientesConDeuda'] ?? [];
+$totalAbonadoCartera = (float) ($cartera['total_abonado'] ?? 0);
+$totalPendienteCartera = (float) ($cartera['total_pendiente'] ?? 0);
+$ventasConSaldo = (int) ($cartera['ventas_con_saldo'] ?? 0);
+
+$historialResumen = $homeData['historialResumen'] ?? [];
+$historialVigentes = (int) ($historialResumen['total_vigentes'] ?? 0);
+$historialAnulados = (int) ($historialResumen['total_anulados'] ?? 0);
+$ultimosHistorial = $homeData['ultimosHistorial'] ?? [];
 ?>
 <link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/home.css">
 
@@ -112,6 +127,32 @@ $activos = $pendiente + $procesando + $listo;
             <p class="kpi-label">Producto Líder</p>
             <p class="kpi-value kpi-text" id="home-producto-lider"><?= htmlspecialchars($topProductoPrincipal) ?></p>
             <span class="kpi-note">Mayor rotación</span>
+        </article>
+
+        <article class="kpi-card kpi-card-accent">
+            <p class="kpi-label">Total Abonado</p>
+            <p class="kpi-value" id="home-cartera-total-abonado">$<?= number_format($totalAbonadoCartera, 2) ?></p>
+            <span class="kpi-note">Pagos recibidos</span>
+        </article>
+
+        <article class="kpi-card kpi-card-danger">
+            <p class="kpi-label">Deuda Pendiente</p>
+            <p class="kpi-value" id="home-cartera-total-pendiente">$<?= number_format($totalPendienteCartera, 2) ?></p>
+            <span class="kpi-note">Saldo por cobrar</span>
+        </article>
+
+        <article class="kpi-card">
+            <p class="kpi-label">Ventas con Saldo</p>
+            <p class="kpi-value" id="home-cartera-ventas-con-saldo"><?= $ventasConSaldo ?></p>
+            <span class="kpi-note">Con abono o sin pago completo</span>
+        </article>
+
+        <article class="kpi-card">
+            <p class="kpi-label">Historial Vigente / Anulado</p>
+            <p class="kpi-value kpi-text">
+                <span id="home-historial-vigentes"><?= $historialVigentes ?></span> / <span id="home-historial-anulados"><?= $historialAnulados ?></span>
+            </p>
+            <span class="kpi-note">Control documental</span>
         </article>
     </section>
 
@@ -217,7 +258,7 @@ $activos = $pendiente + $procesando + $listo;
     <section class="home-panel panel-sales">
         <div class="panel-head">
             <h3>Últimas Ventas Registradas</h3>
-            <p>Últimos movimientos para control de caja y atención al cliente.</p>
+            <p>Movimientos recientes con control de pagos, abonos y saldo.</p>
         </div>
 
         <div class="table-wrap">
@@ -227,27 +268,130 @@ $activos = $pendiente + $procesando + $listo;
                         <th>ID Venta</th>
                         <th>Cliente</th>
                         <th>Total</th>
+                        <th>Abonado</th>
+                        <th>Saldo</th>
+                        <th>Estado Pago</th>
                         <th>Fecha</th>
                     </tr>
                 </thead>
                 <tbody id="home-ultimas-ventas-body">
                     <?php if (!empty($ultimasVentas)): ?>
                         <?php foreach ($ultimasVentas as $venta): ?>
+                            <?php
+                                $totalVenta = (float) ($venta['total'] ?? 0);
+                                $abonadoVenta = (float) ($venta['total_abonado'] ?? $totalVenta);
+                                $saldoVenta = (float) ($venta['saldo_pendiente'] ?? max($totalVenta - $abonadoVenta, 0));
+                                $estadoPagoVenta = strtolower((string) ($venta['estado_pago'] ?? 'pagado'));
+                                $estadoPagoVentaClass = preg_replace('/[^a-z0-9_-]/', '', $estadoPagoVenta) ?: 'pagado';
+                            ?>
                             <tr>
                                 <td><?= (int) ($venta['id'] ?? 0) ?></td>
                                 <td><?= htmlspecialchars(trim((string) (($venta['nombre'] ?? '') . ' ' . ($venta['apellido'] ?? '')))) ?></td>
-                                <td>$<?= number_format((float) ($venta['total'] ?? 0), 2) ?></td>
+                                <td>$<?= number_format($totalVenta, 2) ?></td>
+                                <td>$<?= number_format($abonadoVenta, 2) ?></td>
+                                <td>$<?= number_format($saldoVenta, 2) ?></td>
+                                <td>
+                                    <span class="home-payment-status payment-<?= htmlspecialchars($estadoPagoVentaClass, ENT_QUOTES, 'UTF-8') ?>">
+                                        <?= htmlspecialchars(ucfirst($estadoPagoVenta)) ?>
+                                    </span>
+                                </td>
                                 <td><?= htmlspecialchars((string) ($venta['fecha_venta'] ?? '-')) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="4" style="text-align:center;">Sin ventas registradas.</td>
+                            <td colspan="7" style="text-align:center;">Sin ventas registradas.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>
             </table>
         </div>
+    </section>
+
+    <section class="home-dual-panels">
+        <article class="home-panel">
+            <div class="panel-head">
+                <h3>Clientes con Deuda Pendiente</h3>
+                <p>Top clientes con mayor saldo pendiente en cartera.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="home-table">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Cédula</th>
+                            <th>Ventas</th>
+                            <th>Deuda</th>
+                        </tr>
+                    </thead>
+                    <tbody id="home-clientes-deuda-body">
+                        <?php if (!empty($clientesConDeuda)): ?>
+                            <?php foreach ($clientesConDeuda as $deudor): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars(trim((string) (($deudor['nombre'] ?? '') . ' ' . ($deudor['apellido'] ?? '')))) ?></td>
+                                    <td><?= htmlspecialchars((string) ($deudor['cedula'] ?? '-')) ?></td>
+                                    <td><?= (int) ($deudor['total_ventas_con_deuda'] ?? 0) ?></td>
+                                    <td>$<?= number_format((float) ($deudor['deuda_total'] ?? 0), 2) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="4" style="text-align:center;">No hay clientes con deuda.</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <article class="home-panel">
+            <div class="panel-head">
+                <h3>Últimos Registros de Historial</h3>
+                <p>Conexión directa entre historial de ventas y estado de cobro.</p>
+            </div>
+            <div class="table-wrap">
+                <table class="home-table">
+                    <thead>
+                        <tr>
+                            <th>Historial</th>
+                            <th>Venta</th>
+                            <th>Cliente</th>
+                            <th>Total</th>
+                            <th>Abonado</th>
+                            <th>Saldo</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="home-ultimos-historial-body">
+                        <?php if (!empty($ultimosHistorial)): ?>
+                            <?php foreach ($ultimosHistorial as $registro): ?>
+                                <?php
+                                    $estadoPagoRegistro = strtolower((string) ($registro['estado_pago'] ?? 'pagado'));
+                                    $estadoPagoRegistroClass = preg_replace('/[^a-z0-9_-]/', '', $estadoPagoRegistro) ?: 'pagado';
+                                ?>
+                                <tr>
+                                    <td>#<?= (int) ($registro['id'] ?? 0) ?></td>
+                                    <td>#<?= (int) ($registro['id_venta'] ?? 0) ?></td>
+                                    <td><?= htmlspecialchars(trim((string) (($registro['nombre'] ?? '') . ' ' . ($registro['apellido'] ?? '')))) ?></td>
+                                    <td>$<?= number_format((float) ($registro['total'] ?? 0), 2) ?></td>
+                                    <td>$<?= number_format((float) ($registro['total_abonado'] ?? 0), 2) ?></td>
+                                    <td>$<?= number_format((float) ($registro['saldo_pendiente'] ?? 0), 2) ?></td>
+                                    <td>
+                                        <span class="home-payment-status payment-<?= htmlspecialchars($estadoPagoRegistroClass, ENT_QUOTES, 'UTF-8') ?>">
+                                            <?= htmlspecialchars(ucfirst($estadoPagoRegistro)) ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="7" style="text-align:center;">Sin registros de historial.</td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </article>
     </section>
 </div>
 
