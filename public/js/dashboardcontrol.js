@@ -5,7 +5,22 @@ let sidebar = document.querySelector(".sidebar");
 let closeBtn = document.querySelector("#btn");
 let searchBtn = document.querySelector(".bx-search");
 let logoutBtn = document.querySelector("#log_out");
+let mobileNavToggle = document.querySelector("#mobile-nav-toggle");
+let mobileNavToggleIcon = mobileNavToggle?.querySelector("i") ?? null;
+let sidebarBackdrop = document.querySelector("#sidebar-backdrop");
 const content = document.querySelector("#content");
+const DASHBOARD_PAGE_LABELS = {
+  home: "Sistema",
+  perfil: "Perfil",
+  clientes: "Clientes",
+  pedidos: "Pedidos",
+  historial: "Historial",
+  inventario: "Inventario",
+  ventas: "Ventas",
+  configuracion: "Configuraciones",
+  developer: "Developer"
+};
+const mobileSidebarBreakpoint = window.matchMedia("(max-width: 980px)");
 const homeDashboardState = {
   intervalId: null,
   chartVentasMes: null,
@@ -27,20 +42,110 @@ const SHARED_UI_SYNC_INTERVAL_MS = 8000;
 const TABLE_PAGE_SIZE = 5;
 let tablePaginationSequence = 0;
 
-// Event listener for the menu button to toggle the sidebar open/close
-closeBtn.addEventListener("click", () => {
-  sidebar.classList.toggle("open"); // Toggle the sidebar's open state
-  menuBtnChange(); // Call function to change button icon
-});
+function isMobileSidebarViewport() {
+  return Boolean(mobileSidebarBreakpoint?.matches);
+}
 
-// Event listener for the search button to open the sidebar
-searchBtn.addEventListener("click", () => {
-  sidebar.classList.toggle("open");
-  menuBtnChange(); // Call function to change button icon
-});
+function syncSidebarState() {
+  const isOpen = Boolean(sidebar?.classList.contains("open"));
+  const isMobile = isMobileSidebarViewport();
+
+  document.body.classList.toggle("sidebar-expanded", isOpen && !isMobile);
+  document.body.classList.toggle("sidebar-mobile-open", isOpen && isMobile);
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.hidden = !(isOpen && isMobile);
+  }
+
+  if (mobileNavToggle) {
+    mobileNavToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  }
+
+  if (mobileNavToggleIcon) {
+    mobileNavToggleIcon.classList.toggle("bx-menu", !isOpen);
+    mobileNavToggleIcon.classList.toggle("bx-x", isOpen);
+  }
+}
+
+function openSidebar() {
+  if (!sidebar) return;
+  sidebar.classList.add("open");
+  menuBtnChange();
+  syncSidebarState();
+}
+
+function closeSidebar() {
+  if (!sidebar) return;
+  sidebar.classList.remove("open");
+  menuBtnChange();
+  syncSidebarState();
+}
+
+function toggleSidebar() {
+  if (!sidebar) return;
+  if (sidebar.classList.contains("open")) {
+    closeSidebar();
+    return;
+  }
+
+  openSidebar();
+}
+
+function getDashboardPageLabel(page) {
+  return DASHBOARD_PAGE_LABELS[String(page ?? "").trim()] ?? "Sistema";
+}
+
+function setDashboardCurrentPage(page) {
+  const currentPage = String(page ?? "").trim();
+  const pageLabelNode = document.querySelector("#mobile-current-page");
+  if (pageLabelNode) {
+    pageLabelNode.textContent = getDashboardPageLabel(currentPage);
+  }
+
+  document.querySelectorAll(".nav-list a[data-page]").forEach((link) => {
+    link.classList.toggle("is-active", String(link.dataset.page ?? "") === currentPage);
+  });
+}
+
+function handleSidebarViewportChange() {
+  if (!sidebar) return;
+
+  if (isMobileSidebarViewport()) {
+    closeSidebar();
+    return;
+  }
+
+  syncSidebarState();
+}
+
+if (closeBtn) {
+  closeBtn.addEventListener("click", toggleSidebar);
+}
+
+if (mobileNavToggle) {
+  mobileNavToggle.addEventListener("click", toggleSidebar);
+}
+
+if (searchBtn) {
+  searchBtn.addEventListener("click", () => {
+    if (!sidebar) return;
+    if (isMobileSidebarViewport()) {
+      openSidebar();
+      return;
+    }
+
+    toggleSidebar();
+  });
+}
+
+if (sidebarBackdrop) {
+  sidebarBackdrop.addEventListener("click", closeSidebar);
+}
 
 // Function to change the menu button icon
 function menuBtnChange() {
+  if (!closeBtn || !sidebar) return;
+
   if (sidebar.classList.contains("open")) {
     closeBtn.classList.replace("bx-menu", "bx-menu-alt-right"); // Change icon to indicate closing
   } else {
@@ -52,6 +157,10 @@ async function loadRouteContent(page) {
   if (!content) return;
   const html = await fetch(`?route=${encodeURIComponent(page)}`).then((r) => r.text());
   content.innerHTML = html;
+  setDashboardCurrentPage(page);
+  if (isMobileSidebarViewport()) {
+    closeSidebar();
+  }
   await bootRouteModules(page);
 }
 
@@ -527,9 +636,10 @@ function renderDeveloperTableRows(tableManager) {
           ${columns.map((column) => {
             const value = row?.[column.name ?? ""];
             const extraClass = value === null || value === undefined ? " developer-cell-null" : "";
-            return `<td class="developer-record-cell${extraClass}">${formatDeveloperValue(value)}</td>`;
+            const columnName = String(column.name ?? "-");
+            return `<td class="developer-record-cell${extraClass}" data-label="${escapeHtml(columnName)}">${formatDeveloperValue(value)}</td>`;
           }).join("")}
-          <td class="developer-record-actions">
+          <td class="developer-record-actions" data-label="Acciones">
             <button
               class="btn dev-btn secondary developer-row-btn"
               type="button"
@@ -953,14 +1063,14 @@ function renderDeveloperUsersCredentials(users) {
 
       return `
         <tr>
-          <td>#${escapeHtml(item.id ?? 0)}</td>
-          <td>${escapeHtml(item.usuario ?? "-")}</td>
-          <td>${escapeHtml(item.correo ?? "-")}</td>
-          <td>${escapeHtml(item.nombre_rol ?? "-")}</td>
-          <td>${escapeHtml(item.estado ?? "-")}</td>
-          <td>${mustChange ? "Si" : "No"}</td>
-          <td class="mono">${escapeHtml(passwordStored)} ${hashLabel}</td>
-          <td>
+          <td data-label="ID">#${escapeHtml(item.id ?? 0)}</td>
+          <td data-label="Usuario">${escapeHtml(item.usuario ?? "-")}</td>
+          <td data-label="Correo">${escapeHtml(item.correo ?? "-")}</td>
+          <td data-label="Rol">${escapeHtml(item.nombre_rol ?? "-")}</td>
+          <td data-label="Estado">${escapeHtml(item.estado ?? "-")}</td>
+          <td data-label="Cambio forzado">${mustChange ? "Si" : "No"}</td>
+          <td class="mono" data-label="Contraseña almacenada">${escapeHtml(passwordStored)} ${hashLabel}</td>
+          <td data-label="Acciones">
             <button
               class="btn dev-btn secondary developer-reset-btn"
               type="button"
@@ -1113,8 +1223,8 @@ function renderHomeTopProductos(topProductos) {
   tbody.innerHTML = rows
     .map((item) => `
       <tr>
-        <td>${escapeHtml(item.nombre_producto ?? "-")}</td>
-        <td>${escapeHtml(item.total_vendido ?? 0)}</td>
+        <td data-label="Producto">${escapeHtml(item.nombre_producto ?? "-")}</td>
+        <td data-label="Cantidad">${escapeHtml(item.total_vendido ?? 0)}</td>
       </tr>
     `)
     .join("");
@@ -1144,13 +1254,13 @@ function renderHomeUltimasVentas(ultimasVentas) {
 
       return `
         <tr>
-          <td>${escapeHtml(item.id ?? 0)}</td>
-          <td>${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
-          <td>${escapeHtml(formatMoney(total))}</td>
-          <td>${escapeHtml(formatMoney(abonado))}</td>
-          <td>${escapeHtml(formatMoney(saldo))}</td>
-          <td><span class="home-payment-status ${escapeHtml(badgeClass)}">${escapeHtml(capitalize(estadoPago || "pendiente"))}</span></td>
-          <td>${escapeHtml(item.fecha_venta ?? "-")}</td>
+          <td data-label="ID Venta">${escapeHtml(item.id ?? 0)}</td>
+          <td data-label="Cliente">${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
+          <td data-label="Total">${escapeHtml(formatMoney(total))}</td>
+          <td data-label="Abonado">${escapeHtml(formatMoney(abonado))}</td>
+          <td data-label="Saldo">${escapeHtml(formatMoney(saldo))}</td>
+          <td data-label="Estado Pago"><span class="home-payment-status ${escapeHtml(badgeClass)}">${escapeHtml(capitalize(estadoPago || "pendiente"))}</span></td>
+          <td data-label="Fecha">${escapeHtml(item.fecha_venta ?? "-")}</td>
         </tr>
       `;
     })
@@ -1174,10 +1284,10 @@ function renderHomeClientesConDeuda(clientesConDeuda) {
   tbody.innerHTML = rows
     .map((item) => `
       <tr>
-        <td>${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
-        <td>${escapeHtml(item.cedula ?? "-")}</td>
-        <td>${escapeHtml(item.total_ventas_con_deuda ?? 0)}</td>
-        <td>${escapeHtml(formatMoney(item.deuda_total ?? 0))}</td>
+        <td data-label="Cliente">${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
+        <td data-label="Cédula">${escapeHtml(item.cedula ?? "-")}</td>
+        <td data-label="Ventas">${escapeHtml(item.total_ventas_con_deuda ?? 0)}</td>
+        <td data-label="Deuda">${escapeHtml(formatMoney(item.deuda_total ?? 0))}</td>
       </tr>
     `)
     .join("");
@@ -1204,13 +1314,13 @@ function renderHomeUltimosHistorial(ultimosHistorial) {
 
       return `
         <tr>
-          <td>#${escapeHtml(item.id ?? 0)}</td>
-          <td>#${escapeHtml(item.id_venta ?? 0)}</td>
-          <td>${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
-          <td>${escapeHtml(formatMoney(item.total ?? 0))}</td>
-          <td>${escapeHtml(formatMoney(item.total_abonado ?? 0))}</td>
-          <td>${escapeHtml(formatMoney(item.saldo_pendiente ?? 0))}</td>
-          <td><span class="home-payment-status ${escapeHtml(badgeClass)}">${escapeHtml(capitalize(estadoPago || "pendiente"))}</span></td>
+          <td data-label="Historial">#${escapeHtml(item.id ?? 0)}</td>
+          <td data-label="Venta">#${escapeHtml(item.id_venta ?? 0)}</td>
+          <td data-label="Cliente">${escapeHtml(`${item.nombre ?? ""} ${item.apellido ?? ""}`.trim() || "-")}</td>
+          <td data-label="Total">${escapeHtml(formatMoney(item.total ?? 0))}</td>
+          <td data-label="Abonado">${escapeHtml(formatMoney(item.total_abonado ?? 0))}</td>
+          <td data-label="Saldo">${escapeHtml(formatMoney(item.saldo_pendiente ?? 0))}</td>
+          <td data-label="Estado"><span class="home-payment-status ${escapeHtml(badgeClass)}">${escapeHtml(capitalize(estadoPago || "pendiente"))}</span></td>
         </tr>
       `;
     })
@@ -1527,6 +1637,16 @@ document.querySelectorAll(".nav-list a").forEach((link) => {
     await loadRouteContent(page);
   });
 });
+
+if (typeof mobileSidebarBreakpoint?.addEventListener === "function") {
+  mobileSidebarBreakpoint.addEventListener("change", handleSidebarViewportChange);
+} else if (typeof mobileSidebarBreakpoint?.addListener === "function") {
+  mobileSidebarBreakpoint.addListener(handleSidebarViewportChange);
+}
+
+setDashboardCurrentPage("home");
+handleSidebarViewportChange();
+menuBtnChange();
 
 if (content && !content.innerHTML.trim()) {
   loadRouteContent("home").catch((error) => console.error(error));
@@ -1889,11 +2009,11 @@ async function loadPedidoDetail(idPedido) {
   itemsContainer.innerHTML = detalles
     .map((item) => `
       <tr>
-        <td>${escapeHtml(item.nombre_producto ?? "-")}</td>
-        <td>${escapeHtml(item.cantidad ?? 0)}</td>
-        <td>${formatMoney(item.precio_unitario)}</td>
-        <td>${formatMoney(item.subtotal)}</td>
-        <td class="pedido-detalle-medidas">${renderPedidoDetalleMedidas(item)}</td>
+        <td data-label="Producto">${escapeHtml(item.nombre_producto ?? "-")}</td>
+        <td data-label="Cantidad">${escapeHtml(item.cantidad ?? 0)}</td>
+        <td data-label="Precio Unit.">${formatMoney(item.precio_unitario)}</td>
+        <td data-label="Subtotal">${formatMoney(item.subtotal)}</td>
+        <td class="pedido-detalle-medidas" data-label="Medidas">${renderPedidoDetalleMedidas(item)}</td>
       </tr>
     `)
     .join("");
@@ -2712,12 +2832,12 @@ function renderVentaDetalleAbonos(abonos) {
 
   tbody.innerHTML = rows.map((item) => `
     <tr>
-      <td>#${escapeHtml(item.id ?? 0)}</td>
-      <td>${escapeHtml(item.fecha_abono ?? "-")}</td>
-      <td>${escapeHtml(formatMoney(item.monto ?? 0))}</td>
-      <td>${escapeHtml(item.metodo_pago ?? "-")}</td>
-      <td>${escapeHtml(item.observacion || "-")}</td>
-      <td>${escapeHtml(item.usuario_registro_nombre || "Sistema")}</td>
+      <td data-label="ID">#${escapeHtml(item.id ?? 0)}</td>
+      <td data-label="Fecha">${escapeHtml(item.fecha_abono ?? "-")}</td>
+      <td data-label="Monto">${escapeHtml(formatMoney(item.monto ?? 0))}</td>
+      <td data-label="Metodo">${escapeHtml(item.metodo_pago ?? "-")}</td>
+      <td data-label="Observacion">${escapeHtml(item.observacion || "-")}</td>
+      <td data-label="Usuario">${escapeHtml(item.usuario_registro_nombre || "Sistema")}</td>
     </tr>
   `).join("");
 }
@@ -5967,10 +6087,4 @@ if (logoutBtn) {
   };
 
   logoutBtn.addEventListener("click", goLogout);
-  logoutBtn.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      goLogout();
-    }
-  });
 }

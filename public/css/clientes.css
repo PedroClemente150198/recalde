@@ -700,3 +700,72 @@
         padding: 12px;
     }
 }
+
+@media (max-width: 760px) {
+    .clientes-table-shell {
+        overflow: visible;
+        border-color: rgba(96, 202, 255, 0.12);
+    }
+
+    .clientes-table {
+        min-width: 0;
+    }
+
+    .clientes-table thead {
+        display: none;
+    }
+
+    .clientes-table tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    .clientes-table tbody tr {
+        display: grid;
+        gap: 10px;
+        padding: 16px;
+        border: 1px solid rgba(96, 202, 255, 0.16);
+        border-radius: 18px;
+        background: rgba(5, 19, 31, 0.82) !important;
+        transform: none;
+    }
+
+    .clientes-table td {
+        display: grid;
+        grid-template-columns: minmax(90px, 112px) minmax(0, 1fr);
+        gap: 10px;
+        padding: 0;
+        border: none;
+        overflow-wrap: anywhere;
+    }
+
+    .clientes-table td::before {
+        content: attr(data-label);
+        color: #7cb7d4;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .clientes-table td[data-label="Cliente"],
+    .clientes-table td[data-label="Acciones"] {
+        grid-template-columns: 1fr;
+    }
+
+    .clientes-table td[data-label="Acciones"] .clientes-actions {
+        flex-direction: column;
+    }
+
+    .clientes-table td[data-label="Acciones"] .btn {
+        width: 100%;
+    }
+
+    .clientes-empty {
+        display: block !important;
+        padding: 12px 0 !important;
+    }
+
+    .clientes-empty::before {
+        content: none !important;
+    }
+}

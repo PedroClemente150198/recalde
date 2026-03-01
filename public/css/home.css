@@ -389,3 +389,63 @@
         height: 250px;
     }
 }
+
+@media (max-width: 760px) {
+    .table-wrap {
+        overflow: visible;
+    }
+
+    .home-table {
+        min-width: 0;
+    }
+
+    .home-table thead {
+        display: none;
+    }
+
+    .home-table tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    .home-table tbody tr {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border: 1px solid rgba(123, 194, 238, 0.18);
+        border-radius: 16px;
+        background: rgba(6, 18, 31, 0.78);
+    }
+
+    .home-table tbody td {
+        display: grid;
+        grid-template-columns: minmax(86px, 108px) minmax(0, 1fr);
+        gap: 10px;
+        padding: 0;
+        border: none;
+        align-items: start;
+        overflow-wrap: anywhere;
+    }
+
+    .home-table tbody td::before {
+        content: attr(data-label);
+        color: #8ebfd8;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .home-table tbody td[colspan] {
+        display: block;
+        text-align: center;
+        padding: 4px 0;
+    }
+
+    .home-table tbody td[colspan]::before {
+        content: none;
+    }
+
+    .home-payment-status {
+        justify-self: start;
+    }
+}

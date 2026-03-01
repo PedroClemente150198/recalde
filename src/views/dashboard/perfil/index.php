@@ -146,22 +146,22 @@ $estadoActual = strtolower((string) ($usuario['estado'] ?? 'activo'));
                                 $estado = strtolower((string) ($item['estado'] ?? 'activo'));
                                 ?>
                                 <tr>
-                                    <td>#<?= $userId ?></td>
-                                    <td>
+                                    <td data-label="ID">#<?= $userId ?></td>
+                                    <td data-label="Usuario">
                                         <?= htmlspecialchars((string) ($item['usuario'] ?? '-')) ?>
                                         <?php if ($isSelf): ?>
                                             <small class="perfil-tag">Tú</small>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= htmlspecialchars((string) ($item['correo'] ?? '-')) ?></td>
-                                    <td><?= htmlspecialchars((string) ($item['nombre_rol'] ?? '-')) ?></td>
-                                    <td>
+                                    <td data-label="Correo"><?= htmlspecialchars((string) ($item['correo'] ?? '-')) ?></td>
+                                    <td data-label="Rol"><?= htmlspecialchars((string) ($item['nombre_rol'] ?? '-')) ?></td>
+                                    <td data-label="Estado">
                                         <span class="perfil-badge <?= htmlspecialchars($estado, ENT_QUOTES, 'UTF-8') ?>">
                                             <?= htmlspecialchars(ucfirst($estado)) ?>
                                         </span>
                                     </td>
-                                    <td><?= htmlspecialchars((string) ($item['fecha_registro'] ?? '-')) ?></td>
-                                    <td>
+                                    <td data-label="Registro"><?= htmlspecialchars((string) ($item['fecha_registro'] ?? '-')) ?></td>
+                                    <td data-label="Acciones">
                                         <button
                                             class="btn ghost"
                                             type="button"

@@ -283,19 +283,19 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
                     <?php if (!empty($usuariosCredenciales)): ?>
                         <?php foreach ($usuariosCredenciales as $item): ?>
                             <tr>
-                                <td>#<?= (int) ($item['id'] ?? 0) ?></td>
-                                <td><?= htmlspecialchars((string) ($item['usuario'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= htmlspecialchars((string) ($item['correo'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= htmlspecialchars((string) ($item['nombre_rol'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= htmlspecialchars((string) ($item['estado'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td><?= !empty($item['debe_cambiar_contrasena']) ? 'Sí' : 'No' ?></td>
-                                <td class="mono">
+                                <td data-label="ID">#<?= (int) ($item['id'] ?? 0) ?></td>
+                                <td data-label="Usuario"><?= htmlspecialchars((string) ($item['usuario'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td data-label="Correo"><?= htmlspecialchars((string) ($item['correo'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td data-label="Rol"><?= htmlspecialchars((string) ($item['nombre_rol'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td data-label="Estado"><?= htmlspecialchars((string) ($item['estado'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td data-label="Cambio forzado"><?= !empty($item['debe_cambiar_contrasena']) ? 'Sí' : 'No' ?></td>
+                                <td class="mono" data-label="Contraseña almacenada">
                                     <?= htmlspecialchars((string) ($item['contrasena'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
                                     <?php if (!empty($item['password_is_hash'])): ?>
                                         <small class="developer-hash-label">hash</small>
                                     <?php endif; ?>
                                 </td>
-                                <td>
+                                <td data-label="Acciones">
                                     <button
                                         class="btn dev-btn secondary developer-reset-btn"
                                         type="button"

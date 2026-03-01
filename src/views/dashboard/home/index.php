@@ -240,8 +240,8 @@ $ultimosHistorial = $homeData['ultimosHistorial'] ?? [];
                         <?php if (!empty($topProductos)): ?>
                             <?php foreach ($topProductos as $producto): ?>
                                 <tr>
-                                    <td><?= htmlspecialchars((string) ($producto['nombre_producto'] ?? '-')) ?></td>
-                                    <td><?= (int) ($producto['total_vendido'] ?? 0) ?></td>
+                                    <td data-label="Producto"><?= htmlspecialchars((string) ($producto['nombre_producto'] ?? '-')) ?></td>
+                                    <td data-label="Cantidad"><?= (int) ($producto['total_vendido'] ?? 0) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
@@ -285,17 +285,17 @@ $ultimosHistorial = $homeData['ultimosHistorial'] ?? [];
                                 $estadoPagoVentaClass = preg_replace('/[^a-z0-9_-]/', '', $estadoPagoVenta) ?: 'pagado';
                             ?>
                             <tr>
-                                <td><?= (int) ($venta['id'] ?? 0) ?></td>
-                                <td><?= htmlspecialchars(trim((string) (($venta['nombre'] ?? '') . ' ' . ($venta['apellido'] ?? '')))) ?></td>
-                                <td>$<?= number_format($totalVenta, 2) ?></td>
-                                <td>$<?= number_format($abonadoVenta, 2) ?></td>
-                                <td>$<?= number_format($saldoVenta, 2) ?></td>
-                                <td>
+                                <td data-label="ID Venta"><?= (int) ($venta['id'] ?? 0) ?></td>
+                                <td data-label="Cliente"><?= htmlspecialchars(trim((string) (($venta['nombre'] ?? '') . ' ' . ($venta['apellido'] ?? '')))) ?></td>
+                                <td data-label="Total">$<?= number_format($totalVenta, 2) ?></td>
+                                <td data-label="Abonado">$<?= number_format($abonadoVenta, 2) ?></td>
+                                <td data-label="Saldo">$<?= number_format($saldoVenta, 2) ?></td>
+                                <td data-label="Estado Pago">
                                     <span class="home-payment-status payment-<?= htmlspecialchars($estadoPagoVentaClass, ENT_QUOTES, 'UTF-8') ?>">
                                         <?= htmlspecialchars(ucfirst($estadoPagoVenta)) ?>
                                     </span>
                                 </td>
-                                <td><?= htmlspecialchars((string) ($venta['fecha_venta'] ?? '-')) ?></td>
+                                <td data-label="Fecha"><?= htmlspecialchars((string) ($venta['fecha_venta'] ?? '-')) ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
@@ -328,10 +328,10 @@ $ultimosHistorial = $homeData['ultimosHistorial'] ?? [];
                         <?php if (!empty($clientesConDeuda)): ?>
                             <?php foreach ($clientesConDeuda as $deudor): ?>
                                 <tr>
-                                    <td><?= htmlspecialchars(trim((string) (($deudor['nombre'] ?? '') . ' ' . ($deudor['apellido'] ?? '')))) ?></td>
-                                    <td><?= htmlspecialchars((string) ($deudor['cedula'] ?? '-')) ?></td>
-                                    <td><?= (int) ($deudor['total_ventas_con_deuda'] ?? 0) ?></td>
-                                    <td>$<?= number_format((float) ($deudor['deuda_total'] ?? 0), 2) ?></td>
+                                    <td data-label="Cliente"><?= htmlspecialchars(trim((string) (($deudor['nombre'] ?? '') . ' ' . ($deudor['apellido'] ?? '')))) ?></td>
+                                    <td data-label="Cédula"><?= htmlspecialchars((string) ($deudor['cedula'] ?? '-')) ?></td>
+                                    <td data-label="Ventas"><?= (int) ($deudor['total_ventas_con_deuda'] ?? 0) ?></td>
+                                    <td data-label="Deuda">$<?= number_format((float) ($deudor['deuda_total'] ?? 0), 2) ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
@@ -370,13 +370,13 @@ $ultimosHistorial = $homeData['ultimosHistorial'] ?? [];
                                     $estadoPagoRegistroClass = preg_replace('/[^a-z0-9_-]/', '', $estadoPagoRegistro) ?: 'pagado';
                                 ?>
                                 <tr>
-                                    <td>#<?= (int) ($registro['id'] ?? 0) ?></td>
-                                    <td>#<?= (int) ($registro['id_venta'] ?? 0) ?></td>
-                                    <td><?= htmlspecialchars(trim((string) (($registro['nombre'] ?? '') . ' ' . ($registro['apellido'] ?? '')))) ?></td>
-                                    <td>$<?= number_format((float) ($registro['total'] ?? 0), 2) ?></td>
-                                    <td>$<?= number_format((float) ($registro['total_abonado'] ?? 0), 2) ?></td>
-                                    <td>$<?= number_format((float) ($registro['saldo_pendiente'] ?? 0), 2) ?></td>
-                                    <td>
+                                    <td data-label="Historial">#<?= (int) ($registro['id'] ?? 0) ?></td>
+                                    <td data-label="Venta">#<?= (int) ($registro['id_venta'] ?? 0) ?></td>
+                                    <td data-label="Cliente"><?= htmlspecialchars(trim((string) (($registro['nombre'] ?? '') . ' ' . ($registro['apellido'] ?? '')))) ?></td>
+                                    <td data-label="Total">$<?= number_format((float) ($registro['total'] ?? 0), 2) ?></td>
+                                    <td data-label="Abonado">$<?= number_format((float) ($registro['total_abonado'] ?? 0), 2) ?></td>
+                                    <td data-label="Saldo">$<?= number_format((float) ($registro['saldo_pendiente'] ?? 0), 2) ?></td>
+                                    <td data-label="Estado">
                                         <span class="home-payment-status payment-<?= htmlspecialchars($estadoPagoRegistroClass, ENT_QUOTES, 'UTF-8') ?>">
                                             <?= htmlspecialchars(ucfirst($estadoPagoRegistro)) ?>
                                         </span>

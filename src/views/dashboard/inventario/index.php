@@ -309,31 +309,31 @@ $ultimaActualizacionLabel = $ultimaActualizacion !== null
                                 $categoriaCriticos = (int) ($categoriaStats['criticos'] ?? 0);
                                 ?>
                                 <tr>
-                                    <td><?= $categoriaId ?></td>
-                                    <td class="left">
+                                    <td data-label="ID"><?= $categoriaId ?></td>
+                                    <td class="left" data-label="Categoria">
                                         <div class="inventario-table-title">
                                             <strong><?= htmlspecialchars((string) ($categoria['tipo_categoria'] ?? ''), ENT_QUOTES, 'UTF-8') ?></strong>
                                             <span>Disponible para clasificar productos del catalogo.</span>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td data-label="Productos">
                                         <span class="inventario-count-pill"><?= (int) ($categoriaStats['productos'] ?? 0) ?> items</span>
                                     </td>
-                                    <td>
+                                    <td data-label="Salud">
                                         <?php if ($categoriaCriticos > 0): ?>
                                             <span class="inventario-health-pill danger"><?= $categoriaCriticos ?> en alerta</span>
                                         <?php else: ?>
                                             <span class="inventario-health-pill">Sin alertas</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td>
+                                    <td data-label="Estado">
                                         <?php if ($categoriaEstado === 'inactivo'): ?>
                                             <span class="badge inactivo">Inactivo</span>
                                         <?php else: ?>
                                             <span class="badge activo">Activo</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="acciones">
+                                    <td class="acciones" data-label="Acciones">
                                         <button
                                             class="btn editar"
                                             type="button"
@@ -499,8 +499,8 @@ $ultimaActualizacionLabel = $ultimaActualizacion !== null
                             $descripcionProducto = trim((string) ($item['descripcion'] ?? ''));
                             ?>
                             <tr class="<?= $lowStock ? 'low-stock' : '' ?> <?= $stock <= 0 ? 'stock-zero' : '' ?>">
-                                <td><?= (int) ($item['id'] ?? 0) ?></td>
-                                <td class="left">
+                                <td data-label="ID"><?= (int) ($item['id'] ?? 0) ?></td>
+                                <td class="left" data-label="Producto">
                                     <div class="inventario-table-title">
                                         <strong><?= htmlspecialchars((string) ($item['nombre_producto'] ?? ''), ENT_QUOTES, 'UTF-8') ?></strong>
                                         <span>
@@ -517,15 +517,15 @@ $ultimaActualizacionLabel = $ultimaActualizacion !== null
                                         <?php endif; ?>
                                     </div>
                                 </td>
-                                <td>
+                                <td data-label="Categoria">
                                     <span class="inventario-category-pill">
                                         <?= htmlspecialchars($categoriaNombre !== '' ? $categoriaNombre : 'Sin categoria', ENT_QUOTES, 'UTF-8') ?>
                                     </span>
                                 </td>
-                                <td>
+                                <td data-label="Precio Base">
                                     <span class="inventario-price">$<?= number_format((float) ($item['precio_base'] ?? 0), 2) ?></span>
                                 </td>
-                                <td>
+                                <td data-label="Stock">
                                     <div class="inventario-stock-cell">
                                         <strong><?= $stockActual ?></strong>
                                         <div class="inventario-stock-bar">
@@ -549,16 +549,16 @@ $ultimaActualizacionLabel = $ultimaActualizacion !== null
                                         </small>
                                     </div>
                                 </td>
-                                <td><?= $stockMinimo ?></td>
-                                <td>
+                                <td data-label="Minimo"><?= $stockMinimo ?></td>
+                                <td data-label="Estado">
                                     <?php if (strtolower(trim((string) ($item['estado_producto'] ?? 'activo'))) === 'inactivo'): ?>
                                         <span class="badge inactivo">Inactivo</span>
                                     <?php else: ?>
                                         <span class="badge activo">Activo</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><?= htmlspecialchars($formatearFecha((string) ($item['fecha_actualizacion'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td class="acciones">
+                                <td data-label="Actualizado"><?= htmlspecialchars($formatearFecha((string) ($item['fecha_actualizacion'] ?? '')), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td class="acciones" data-label="Acciones">
                                     <button
                                         class="btn editar"
                                         type="button"

@@ -1111,3 +1111,98 @@
         width: 100%;
     }
 }
+
+@media (max-width: 900px) {
+    .tabla-wrapper,
+    .tabla-wrapper-ventas {
+        overflow: visible;
+    }
+
+    .ventas-table {
+        min-width: 0;
+    }
+
+    .ventas-table colgroup,
+    .ventas-table thead {
+        display: none;
+    }
+
+    .ventas-table tbody {
+        display: grid;
+        gap: 12px;
+    }
+
+    .ventas-table tbody tr {
+        display: grid;
+        gap: 10px;
+        padding: 16px;
+        border: 1px solid rgba(83, 216, 255, 0.16);
+        border-radius: 20px;
+        background: rgba(6, 20, 33, 0.86);
+    }
+
+    .ventas-table tbody td {
+        display: grid;
+        grid-template-columns: minmax(88px, 112px) minmax(0, 1fr);
+        gap: 12px;
+        padding: 0;
+        border: none;
+        overflow-wrap: anywhere;
+    }
+
+    .ventas-table tbody td::before {
+        content: attr(data-label);
+        color: #91c7df;
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .ventas-table tbody td.ventas-cell-id,
+    .ventas-table tbody td.ventas-cell-cliente,
+    .ventas-table tbody td.ventas-cell-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .ventas-table tbody td.ventas-cell-actions::before {
+        margin-bottom: 8px;
+    }
+
+    .ventas-table tbody td.ventas-cell-actions .btn {
+        width: 100%;
+    }
+
+    .ventas-table tbody td[colspan] {
+        display: block;
+        text-align: center;
+        padding: 10px 0;
+    }
+
+    .ventas-table tbody td[colspan]::before {
+        content: none;
+    }
+
+    .ventas-cell-date,
+    .ventas-cell-status,
+    .ventas-cell-method,
+    .ventas-cell-pedido {
+        align-items: start;
+    }
+
+    .ventas-date-badge,
+    .payment-status,
+    .ventas-pill,
+    .ventas-cell-status span {
+        justify-self: start;
+    }
+
+    .acciones {
+        min-width: 0;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ventas-main-panel.ventas-actions-hidden .ventas-cell-actions {
+        display: none;
+    }
+}

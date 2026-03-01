@@ -14,9 +14,35 @@
       $baseUrlEsc = htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8');
     ?>
     <header>
+        <div class="mobile-topbar">
+          <button
+            class="mobile-nav-toggle"
+            id="mobile-nav-toggle"
+            type="button"
+            aria-label="Abrir navegación"
+            aria-controls="dashboard-sidebar"
+            aria-expanded="false"
+          >
+            <i class='bx bx-menu'></i>
+            <span>Menú</span>
+          </button>
+
+          <div class="mobile-topbar-copy">
+            <strong>RECALDE</strong>
+            <small id="mobile-current-page">Sistema</small>
+          </div>
+        </div>
+
+        <button
+          class="sidebar-backdrop"
+          id="sidebar-backdrop"
+          type="button"
+          aria-label="Cerrar navegación"
+          hidden
+        ></button>
 
         <!-- Sidebar for navigation -->
-        <div class="sidebar">
+        <div class="sidebar" id="dashboard-sidebar">
           <div class="logo-details">
             <!-- Icon and logo name -->
             <!--<i class='bx bxl-c-plus-plus icon'></i>-->
@@ -116,14 +142,16 @@
                 </div>
               </div>
               <!--Botón para cerrar Sesión -->
-              <i
-                class='bx bx-log-out'
+              <button
                 id="log_out"
-                role="button"
-                tabindex="0"
+                class="sidebar-logout-btn"
+                type="button"
                 title="Cerrar sesión"
                 aria-label="Cerrar sesión"
-              ></i> 
+              >
+                <i class='bx bx-log-out' aria-hidden="true"></i>
+                <span>Cerrar sesión</span>
+              </button>
             </li>
           </ul>
         </div>

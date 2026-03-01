@@ -159,35 +159,35 @@ $clientesAtendidosTotal = count($clientesAtendidos);
                                 data-venta-id="<?= $idVenta ?>"
                                 title="Haz clic para ver acciones del pedido"
                             >
-                                <td class="pedidos-id-cell">
+                                <td class="pedidos-id-cell" data-label="Pedido">
                                     <strong>#<?= (int) ($pedido['id'] ?? 0) ?></strong>
                                     <small>Pedido</small>
                                 </td>
 
-                                <td class="pedidos-client-cell">
+                                <td class="pedidos-client-cell" data-label="Cliente">
                                     <strong><?= htmlspecialchars($clienteNombre !== '' ? $clienteNombre : 'Cliente sin nombre', ENT_QUOTES, 'UTF-8') ?></strong>
                                     <small>Registro asociado al cliente</small>
                                 </td>
 
-                                <td>
+                                <td data-label="Cédula">
                                     <?= htmlspecialchars((string) ($pedido['cedula'] ?? 'Sin cédula'), ENT_QUOTES, 'UTF-8') ?>
                                 </td>
 
-                                <td class="pedidos-total-cell">
+                                <td class="pedidos-total-cell" data-label="Total">
                                     $<?= number_format((float) ($pedido['total'] ?? 0), 2) ?>
                                 </td>
 
-                                <td class="pedidos-date-cell">
+                                <td class="pedidos-date-cell" data-label="Fecha Pedido">
                                     <?= htmlspecialchars($fechaPedido, ENT_QUOTES, 'UTF-8') ?>
                                 </td>
 
-                                <td>
+                                <td data-label="Estado">
                                     <span class="status-<?= htmlspecialchars($estadoClass, ENT_QUOTES, 'UTF-8') ?>">
                                         <?= htmlspecialchars((string) ($pedido['estado'] ?? 'Desconocido'), ENT_QUOTES, 'UTF-8') ?>
                                     </span>
                                 </td>
 
-                                <td>
+                                <td class="pedidos-actions-cell" data-label="Acciones">
                                     <div class="pedidos-actions">
                                         <button class="btn ver" type="button" data-action="ver-pedido" data-id="<?= (int) ($pedido['id'] ?? 0) ?>">
                                             Ver

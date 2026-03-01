@@ -235,7 +235,7 @@ if ($ultimoCliente) {
                         $searchText = strtolower($nombreCompleto . ' ' . $cedula . ' ' . $telefono . ' ' . $direccion . ' ' . $empresa . ' ' . $usuarioRegistro . ' ' . $idCliente);
                         ?>
                         <tr data-clientes-search="<?= htmlspecialchars($searchText, ENT_QUOTES, 'UTF-8') ?>">
-                            <td class="clientes-person-cell">
+                            <td class="clientes-person-cell" data-label="Cliente">
                                 <strong><?= htmlspecialchars($nombreCompleto, ENT_QUOTES, 'UTF-8') ?></strong>
                                 <div class="clientes-person-tags">
                                     <span class="clientes-inline-badge<?= $fichaCompleta ? ' is-complete' : ' is-pending' ?>">
@@ -251,14 +251,14 @@ if ($ultimoCliente) {
                                 </small>
                             </td>
 
-                            <td>
+                            <td data-label="Cédula">
                                 <div class="clientes-data-stack">
                                     <strong><?= htmlspecialchars($cedula !== '' ? $cedula : 'Sin cédula', ENT_QUOTES, 'UTF-8') ?></strong>
                                     <small><?= $cedula !== '' ? 'Documento registrado' : 'Pendiente de completar' ?></small>
                                 </div>
                             </td>
 
-                            <td>
+                            <td data-label="Contacto">
                                 <div class="clientes-data-stack">
                                     <strong><?= htmlspecialchars($telefono !== '' ? $telefono : 'Sin teléfono', ENT_QUOTES, 'UTF-8') ?></strong>
                                     <small><?= htmlspecialchars($direccion !== '' ? $direccion : 'Sin dirección registrada', ENT_QUOTES, 'UTF-8') ?></small>
@@ -272,7 +272,7 @@ if ($ultimoCliente) {
                                 </div>
                             </td>
 
-                            <td>
+                            <td data-label="Empresa">
                                 <div class="clientes-data-stack">
                                     <span class="clientes-company-badge<?= $empresa === '' ? ' is-empty' : '' ?>">
                                         <?= htmlspecialchars($empresa !== '' ? $empresa : 'Sin empresa', ENT_QUOTES, 'UTF-8') ?>
@@ -281,14 +281,14 @@ if ($ultimoCliente) {
                                 </div>
                             </td>
 
-                            <td>
+                            <td data-label="Registrado por">
                                 <div class="clientes-data-stack">
                                     <strong><?= htmlspecialchars($usuarioRegistro !== '' ? $usuarioRegistro : 'Sistema', ENT_QUOTES, 'UTF-8') ?></strong>
                                     <small><?= $empresa !== '' ? 'Registro empresarial' : 'Registro particular' ?></small>
                                 </div>
                             </td>
 
-                            <td>
+                            <td data-label="Acciones">
                                 <div class="clientes-actions">
                                     <button
                                         class="btn editar"

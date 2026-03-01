@@ -378,28 +378,28 @@ $formatPaymentMethod = static function (?string $value): string {
                             data-estado-pedido="<?= htmlspecialchars($estadoPedidoLabel, ENT_QUOTES, 'UTF-8') ?>"
                             title="Haz clic para ver acciones de esta venta"
                         >
-                            <td class="ventas-cell-id">
+                            <td class="ventas-cell-id" data-label="Venta">
                                 <div class="ventas-meta-stack">
                                     <strong>#<?= (int) ($venta['id'] ?? 0) ?></strong>
                                     <small>Venta registrada</small>
                                 </div>
                             </td>
-                            <td class="ventas-cell-pedido">
+                            <td class="ventas-cell-pedido" data-label="Pedido">
                                 <span class="ventas-pill ventas-pill-reference">Pedido #<?= (int) ($venta['id_pedido'] ?? 0) ?></span>
                             </td>
-                            <td class="ventas-cell-cliente">
+                            <td class="ventas-cell-cliente" data-label="Cliente">
                                 <div class="ventas-cell-title"><?= htmlspecialchars($clienteNombre !== '' ? $clienteNombre : '-', ENT_QUOTES, 'UTF-8') ?></div>
                                 <small class="ventas-subdata">
                                     <?= !empty($venta['cedula']) ? 'CI ' . htmlspecialchars((string) $venta['cedula'], ENT_QUOTES, 'UTF-8') : 'Documento sin registrar' ?>
                                 </small>
                             </td>
-                            <td class="ventas-money-cell">
+                            <td class="ventas-money-cell" data-label="Total">
                                 <div class="ventas-meta-stack">
                                     <strong>$<?= number_format($total, 2) ?></strong>
                                     <small>Total facturado</small>
                                 </div>
                             </td>
-                            <td class="ventas-cell-abonado">
+                            <td class="ventas-cell-abonado" data-label="Abonado">
                                 <div class="ventas-progress-cell">
                                     <strong>$<?= number_format($abonado, 2) ?></strong>
                                     <div class="ventas-progress-bar">
@@ -408,32 +408,32 @@ $formatPaymentMethod = static function (?string $value): string {
                                     <small><?= $progresoCobro ?>% cubierto</small>
                                 </div>
                             </td>
-                            <td class="monto-deuda ventas-money-cell">
+                            <td class="monto-deuda ventas-money-cell" data-label="Saldo">
                                 <div class="ventas-meta-stack">
                                     <strong><?= '$' . number_format($saldo, 2) ?></strong>
                                     <small>Por cobrar</small>
                                 </div>
                             </td>
-                            <td class="ventas-cell-status">
+                            <td class="ventas-cell-status" data-label="Pago">
                                 <span class="payment-status payment-<?= htmlspecialchars($estadoPagoClass, ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars(ucfirst($estadoPago), ENT_QUOTES, 'UTF-8') ?>
                                 </span>
                             </td>
-                            <td class="ventas-cell-method">
+                            <td class="ventas-cell-method" data-label="Metodo">
                                 <span class="ventas-pill ventas-pill-method"><?= htmlspecialchars($formatPaymentMethod((string) ($venta['metodo_pago'] ?? '-')), ENT_QUOTES, 'UTF-8') ?></span>
                             </td>
-                            <td class="ventas-cell-date">
+                            <td class="ventas-cell-date" data-label="Fecha">
                                 <span class="ventas-date-badge"><?= htmlspecialchars($fechaVenta, ENT_QUOTES, 'UTF-8') ?></span>
                                 <?php if ($horaVenta !== ''): ?>
                                     <small class="ventas-date-time"><?= htmlspecialchars($horaVenta . ' h', ENT_QUOTES, 'UTF-8') ?></small>
                                 <?php endif; ?>
                             </td>
-                            <td class="ventas-cell-status">
+                            <td class="ventas-cell-status" data-label="Estado">
                                 <span class="status-<?= htmlspecialchars($estadoPedidoClass, ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars($estadoPedidoLabel, ENT_QUOTES, 'UTF-8') ?>
                                 </span>
                             </td>
-                            <td class="ventas-cell-actions acciones">
+                            <td class="ventas-cell-actions acciones" data-label="Acciones">
                                 <button
                                     class="btn detalle"
                                     type="button"
