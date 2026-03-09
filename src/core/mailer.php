@@ -39,9 +39,7 @@ class Mailer {
             $this->encryption = 'tls';
         }
 
-        $defaultLogPath = defined('BASE_PATH')
-            ? BASE_PATH . '/storage/mail.log'
-            : dirname(__DIR__, 2) . '/storage/mail.log';
+        $defaultLogPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'recalde-mail.log';
         $this->logPath = trim((string) (getenv('MAIL_LOG_PATH') ?: $defaultLogPath));
         if (!$this->isAbsolutePath($this->logPath) && defined('BASE_PATH')) {
             $this->logPath = rtrim((string) BASE_PATH, '/') . '/' . ltrim($this->logPath, '/');
@@ -381,12 +379,11 @@ class Mailer {
         $entry = [];
         $entry[] = "==== " . date('Y-m-d H:i:s') . " ====";
         $entry[] = "Reason: {$reason}";
-        $entry[] = "To: {$to}";
-        $entry[] = "Subject: {$subject}";
-        $entry[] = "Text:";
-        $entry[] = $textBody;
-        $entry[] = "HTML:";
-        $entry[] = $htmlBody;
+        $entry[] = "To: " . $this->maskEmailForLog($to);
+        $entry[] = "Subject: " . $this->sanitizeLogPreview($subject, 160);
+        $entry[] = "Text preview: " . $this->sanitizeLogPreview($textBody, 320);
+        $entry[] = "HTML preview: " . $this->sanitizeLogPreview($htmlBody, 220);
+        $entry[] = "Body lengths (text/html): " . strlen($textBody) . "/" . strlen($htmlBody);
         $entry[] = "";
 
         $content = implode(PHP_EOL, $entry);
@@ -404,6 +401,46 @@ class Mailer {
 
         error_log('Mailer::logEmail => no se pudo escribir en ninguna ruta de log.');
         return false;
+    }
+
+    private function sanitizeLogPreview(string $content, int $maxLength = 220): string {
+        $content = html_entity_decode(strip_tags($content), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $content = preg_replace('/https?:\/\/\S+/i', '[url_redacted]', $content);
+        $content = preg_replace('/(token=)[a-z0-9\-_]+/i', '$1[redacted]', (string) $content);
+        $content = preg_replace('/[ \t]+/', ' ', (string) $content);
+        $content = trim((string) $content);
+
+        if ($content === '') {
+            return '[sin_contenido]';
+        }
+
+        if ($maxLength > 0 && strlen($content) > $maxLength) {
+            return substr($content, 0, $maxLength) . '...';
+        }
+
+        return $content;
+    }
+
+    private function maskEmailForLog(string $email): string {
+        $email = trim($email);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return '[email_invalido]';
+        }
+
+        [$localPart, $domainPart] = explode('@', $email, 2);
+        $visibleLocal = substr($localPart, 0, min(2, strlen($localPart)));
+        $maskedLocal = $visibleLocal . str_repeat('*', max(2, strlen($localPart) - strlen($visibleLocal)));
+
+        $domainChunks = explode('.', $domainPart);
+        $domainName = (string) ($domainChunks[0] ?? '');
+        $domainSuffix = count($domainChunks) > 1
+            ? '.' . implode('.', array_slice($domainChunks, 1))
+            : '';
+
+        $visibleDomain = substr($domainName, 0, min(1, strlen($domainName)));
+        $maskedDomain = $visibleDomain . str_repeat('*', max(2, strlen($domainName) - strlen($visibleDomain)));
+
+        return "{$maskedLocal}@{$maskedDomain}{$domainSuffix}";
     }
 
     private function appendToLogPath(string $path, string $content): bool {

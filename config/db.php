@@ -13,7 +13,7 @@ class Database {
         $this->host = getenv('DB_HOST') ?: 'localhost';
         $this->dbName = getenv('DB_NAME') ?: 'RECALDE';
         $this->userName = getenv('DB_USER') ?: 'root';
-        $this->password = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '12345678';
+        $this->password = getenv('DB_PASS') !== false ? (string) getenv('DB_PASS') : '';
         $this->charset = getenv('DB_CHARSET') ?: 'utf8mb4';
     }
 

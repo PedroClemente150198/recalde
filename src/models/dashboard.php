@@ -573,7 +573,6 @@ class Dashboard {
                         u.id,
                         u.usuario,
                         u.correo,
-                        u.contrasena,
                         u.estado,
                         {$forceColumnExpr} AS debe_cambiar_contrasena,
                         r.rol AS nombre_rol
@@ -583,16 +582,7 @@ class Dashboard {
 
             $stmt = $this->conn->prepare($sql);
             $stmt->execute();
-            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-            foreach ($rows as &$row) {
-                $storedPassword = (string) ($row['contrasena'] ?? '');
-                $info = password_get_info($storedPassword);
-                $row['password_is_hash'] = ((int) ($info['algo'] ?? 0)) !== 0;
-            }
-            unset($row);
-
-            return $rows;
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (PDOException $e) {
             error_log("Error Dashboard::getDeveloperUsersCredentials => " . $e->getMessage());
             return [];
@@ -751,8 +741,18 @@ class Dashboard {
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':limit', max(1, $limit), PDO::PARAM_INT);
             $stmt->execute();
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($tableName === 'usuarios') {
+                foreach ($rows as &$row) {
+                    if (array_key_exists('contrasena', $row)) {
+                        $row['contrasena'] = '[protegido]';
+                    }
+                }
+                unset($row);
+            }
+
+            return $rows;
         } catch (PDOException $e) {
             error_log("Error Dashboard::getDeveloperTableRows => " . $e->getMessage());
             return [];

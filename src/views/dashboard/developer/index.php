@@ -258,13 +258,9 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
 
     <section class="developer-section">
         <div class="developer-section-head">
-            <h2>Usuarios y Credenciales</h2>
-            <p>Vista técnica del valor almacenado en `usuarios.contrasena`.</p>
+            <h2>Usuarios y Seguridad</h2>
+            <p>Gestión de estado y reseteo seguro de credenciales.</p>
         </div>
-
-        <p class="developer-credentials-note">
-            Si el valor es hash, no puede convertirse a texto plano.
-        </p>
 
         <div class="developer-table-wrap">
             <table class="developer-credentials-table">
@@ -276,7 +272,6 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
                         <th>Rol</th>
                         <th>Estado</th>
                         <th>Cambio forzado</th>
-                        <th>Contraseña almacenada</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -299,12 +294,6 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
                                 <td data-label="Rol"><?= htmlspecialchars((string) ($item['nombre_rol'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td data-label="Estado"><?= htmlspecialchars($estadoNormalizado, ENT_QUOTES, 'UTF-8') ?></td>
                                 <td data-label="Cambio forzado"><?= !empty($item['debe_cambiar_contrasena']) ? 'Sí' : 'No' ?></td>
-                                <td class="mono" data-label="Contraseña almacenada">
-                                    <?= htmlspecialchars((string) ($item['contrasena'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
-                                    <?php if (!empty($item['password_is_hash'])): ?>
-                                        <small class="developer-hash-label">hash</small>
-                                    <?php endif; ?>
-                                </td>
                                 <td data-label="Acciones">
                                     <button
                                         class="btn dev-btn <?= $isSelfUser ? 'secondary' : $toggleClass ?> developer-status-btn"
@@ -331,7 +320,7 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
-                            <td colspan="8" style="text-align:center;">No hay usuarios para mostrar.</td>
+                            <td colspan="7" style="text-align:center;">No hay usuarios para mostrar.</td>
                         </tr>
                     <?php endif; ?>
                 </tbody>

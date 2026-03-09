@@ -1,8 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <?php
+      $dashboardCsrfToken = '';
+      if (isset($_SESSION['usuario']) && function_exists('getDashboardCsrfToken')) {
+        $dashboardCsrfToken = getDashboardCsrfToken();
+      }
+    ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="app-csrf-token" content="<?= htmlspecialchars($dashboardCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/dashboard.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <title>RECALDE</title>

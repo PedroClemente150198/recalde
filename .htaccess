@@ -1,4 +1,11 @@
+Options -Indexes
+
 RewriteEngine On
+
+# Bloquea acceso directo a rutas sensibles si el DocumentRoot apunta a la raíz del proyecto.
+RewriteRule ^(?:storage|src|config|vendor)(?:/|$) - [F,L,NC]
+RewriteRule ^(?:\.env(?:\.example)?|composer\.(?:json|lock)|README\.md|recalde\.zip)$ - [F,L,NC]
+RewriteRule (^|/)\.(?!well-known/) - [F,L,NC]
 
 # Evitar redirigir archivos existentes
 RewriteCond %{REQUEST_FILENAME} !-f

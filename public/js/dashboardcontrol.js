@@ -41,6 +41,65 @@ const sharedUiPreferencesState = {
 const SHARED_UI_SYNC_INTERVAL_MS = 8000;
 const TABLE_PAGE_SIZE = 5;
 let tablePaginationSequence = 0;
+const APP_CSRF_TOKEN = String(
+  document.querySelector('meta[name="app-csrf-token"]')?.getAttribute("content") ?? ""
+).trim();
+
+function appendCsrfTokenToRequestBody(body, headers) {
+  if (!APP_CSRF_TOKEN) return body;
+
+  if (body instanceof URLSearchParams) {
+    if (!body.has("csrf_token")) {
+      body.append("csrf_token", APP_CSRF_TOKEN);
+    }
+    return body;
+  }
+
+  if (body instanceof FormData) {
+    if (!body.has("csrf_token")) {
+      body.append("csrf_token", APP_CSRF_TOKEN);
+    }
+    return body;
+  }
+
+  const contentType = String(headers.get("Content-Type") ?? "").toLowerCase();
+  if (typeof body === "string" && contentType.includes("application/x-www-form-urlencoded")) {
+    const params = new URLSearchParams(body);
+    if (!params.has("csrf_token")) {
+      params.append("csrf_token", APP_CSRF_TOKEN);
+    }
+    return params.toString();
+  }
+
+  return body;
+}
+
+async function appFetch(input, init = {}) {
+  const requestInit = { ...init };
+  const method = String(requestInit.method ?? "GET").toUpperCase();
+  const isMutation = !["GET", "HEAD", "OPTIONS"].includes(method);
+
+  if (isMutation && APP_CSRF_TOKEN) {
+    const headers = new Headers(requestInit.headers || {});
+    if (!headers.has("X-CSRF-Token")) {
+      headers.set("X-CSRF-Token", APP_CSRF_TOKEN);
+    }
+    requestInit.headers = headers;
+
+    if (requestInit.body === undefined || requestInit.body === null) {
+      const params = new URLSearchParams();
+      params.append("csrf_token", APP_CSRF_TOKEN);
+      requestInit.body = params.toString();
+      if (!headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+      }
+    } else {
+      requestInit.body = appendCsrfTokenToRequestBody(requestInit.body, headers);
+    }
+  }
+
+  return window.fetch(input, requestInit);
+}
 
 function isMobileSidebarViewport() {
   return Boolean(mobileSidebarBreakpoint?.matches);
@@ -155,7 +214,7 @@ function menuBtnChange() {
 
 async function loadRouteContent(page) {
   if (!content) return;
-  const html = await fetch(`?route=${encodeURIComponent(page)}`).then((r) => r.text());
+  const html = await appFetch(`?route=${encodeURIComponent(page)}`).then((r) => r.text());
   content.innerHTML = html;
   setDashboardCurrentPage(page);
   if (isMobileSidebarViewport()) {
@@ -752,7 +811,7 @@ function applySharedUiPreferences(preferences, scope = content || document) {
 }
 
 async function requestDashboardUiData() {
-  const response = await fetch("?route=dashboard-ui-data");
+  const response = await appFetch("?route=dashboard-ui-data");
   const result = await response.json();
 
   if (!response.ok || !result?.ok) {
@@ -1098,7 +1157,7 @@ function renderDeveloperUsersCredentials(users) {
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="8" style="text-align:center;">No hay usuarios para mostrar.</td>
+        <td colspan="7" style="text-align:center;">No hay usuarios para mostrar.</td>
       </tr>
     `;
     return;
@@ -1106,10 +1165,6 @@ function renderDeveloperUsersCredentials(users) {
 
   tbody.innerHTML = rows
     .map((item) => {
-      const passwordStored = String(item.contrasena ?? "");
-      const hashLabel = Boolean(item.password_is_hash)
-        ? '<small class="developer-hash-label">hash</small>'
-        : "";
       const mustChange = Number(item.debe_cambiar_contrasena ?? 0) === 1;
       const userId = Number(item.id ?? 0);
       const username = String(item.usuario ?? "");
@@ -1133,7 +1188,6 @@ function renderDeveloperUsersCredentials(users) {
           <td data-label="Rol">${escapeHtml(item.nombre_rol ?? "-")}</td>
           <td data-label="Estado">${escapeHtml(userStatus)}</td>
           <td data-label="Cambio forzado">${mustChange ? "Si" : "No"}</td>
-          <td class="mono" data-label="Contraseña almacenada">${escapeHtml(passwordStored)} ${hashLabel}</td>
           <td data-label="Acciones">
             <button
               class="btn dev-btn ${statusButtonClass} developer-status-btn"
@@ -1169,7 +1223,7 @@ async function requestDeveloperData(tableName = "") {
     params.set("table", String(tableName).trim());
   }
 
-  const response = await fetch(`?${params.toString()}`);
+  const response = await appFetch(`?${params.toString()}`);
   const responseType = response.headers.get("content-type") || "";
   if (!responseType.includes("application/json")) {
     throw new Error("La respuesta del módulo Developer no es válida.");
@@ -1193,7 +1247,7 @@ async function requestDeveloperAction(action, payload = {}) {
     });
   }
 
-  const response = await fetch("?route=developer-action", {
+  const response = await appFetch("?route=developer-action", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -1649,7 +1703,7 @@ async function requestHomeDashboardData() {
     periodo
   });
 
-  const response = await fetch(`?${query.toString()}`);
+  const response = await appFetch(`?${query.toString()}`);
   const responseType = response.headers.get("content-type") || "";
   if (!responseType.includes("application/json")) {
     throw new Error("Respuesta inválida en métricas del dashboard.");
@@ -2035,7 +2089,7 @@ function formatRoleLabel(value) {
 }
 
 async function requestPedidoDetail(idPedido) {
-  const response = await fetch(`?route=pedido-detalle&id=${encodeURIComponent(idPedido)}`);
+  const response = await appFetch(`?route=pedido-detalle&id=${encodeURIComponent(idPedido)}`);
   const responseType = response.headers.get("content-type") || "";
   if (!responseType.includes("application/json")) {
     throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
@@ -2405,7 +2459,7 @@ async function requestPerfilCreate(payload) {
   params.append("id_rol", String(payload.idRol));
   params.append("estado", payload.estado);
 
-  const response = await fetch("?route=perfil-crear", {
+  const response = await appFetch("?route=perfil-crear", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -2441,7 +2495,7 @@ async function requestPerfilUpdate(payload) {
     params.append("estado", payload.estado);
   }
 
-  const response = await fetch("?route=perfil-actualizar", {
+  const response = await appFetch("?route=perfil-actualizar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -2468,7 +2522,7 @@ async function requestPerfilDelete(idUsuario) {
     params.append("id", String(idUsuario));
   }
 
-  const response = await fetch("?route=perfil-eliminar", {
+  const response = await appFetch("?route=perfil-eliminar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -2571,7 +2625,7 @@ async function requestClienteUpdate(payload) {
   params.append("direccion", payload.direccion);
   params.append("empresa", payload.empresa);
 
-  const response = await fetch("?route=cliente-actualizar", {
+  const response = await appFetch("?route=cliente-actualizar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -2601,7 +2655,7 @@ async function requestClienteCreate(payload) {
   params.append("direccion", payload.direccion);
   params.append("empresa", payload.empresa);
 
-  const response = await fetch("?route=cliente-crear", {
+  const response = await appFetch("?route=cliente-crear", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -2626,7 +2680,7 @@ async function requestClienteDelete(idCliente) {
   const params = new URLSearchParams();
   params.append("id", String(idCliente));
 
-  const response = await fetch("?route=cliente-eliminar", {
+  const response = await appFetch("?route=cliente-eliminar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -2980,7 +3034,7 @@ async function requestVentaCreate(payload) {
   }
   params.append("metodo_pago", payload.metodoPago);
 
-  const response = await fetch("?route=venta-crear", {
+  const response = await appFetch("?route=venta-crear", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3002,7 +3056,7 @@ async function requestVentaCreate(payload) {
 }
 
 async function requestVentaDetail(idVenta) {
-  const response = await fetch(`?route=venta-detalle&id=${encodeURIComponent(idVenta)}`);
+  const response = await appFetch(`?route=venta-detalle&id=${encodeURIComponent(idVenta)}`);
   const responseType = response.headers.get("content-type") || "";
   if (!responseType.includes("application/json")) {
     throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
@@ -3022,7 +3076,7 @@ async function requestVentaUpdate(payload) {
   params.append("total", payload.totalRaw);
   params.append("metodo_pago", payload.metodoPago);
 
-  const response = await fetch("?route=venta-actualizar", {
+  const response = await appFetch("?route=venta-actualizar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3050,7 +3104,7 @@ async function requestVentaAbonoCreate(payload) {
   params.append("metodo_pago", payload.metodoPago);
   params.append("observacion", payload.observacion);
 
-  const response = await fetch("?route=venta-abono-crear", {
+  const response = await appFetch("?route=venta-abono-crear", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3075,7 +3129,7 @@ async function requestVentaDelete(idVenta) {
   const params = new URLSearchParams();
   params.append("id", String(idVenta));
 
-  const response = await fetch("?route=venta-eliminar", {
+  const response = await appFetch("?route=venta-eliminar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3250,7 +3304,7 @@ async function requestProductoCreate(payload) {
   params.append("stock_minimo", payload.stockMinimoRaw);
   params.append("estado", payload.estado);
 
-  const response = await fetch("?route=producto-crear", {
+  const response = await appFetch("?route=producto-crear", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3282,7 +3336,7 @@ async function requestProductoUpdate(payload) {
   params.append("stock_minimo", payload.stockMinimoRaw);
   params.append("estado", payload.estado);
 
-  const response = await fetch("?route=producto-actualizar", {
+  const response = await appFetch("?route=producto-actualizar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3307,7 +3361,7 @@ async function requestProductoDelete(idProducto) {
   const params = new URLSearchParams();
   params.append("id", String(idProducto));
 
-  const response = await fetch("?route=producto-eliminar", {
+  const response = await appFetch("?route=producto-eliminar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3427,7 +3481,7 @@ async function requestCategoriaCreate(payload) {
   params.append("tipo_categoria", payload.tipoCategoria);
   params.append("estado", payload.estado);
 
-  const response = await fetch("?route=categoria-crear", {
+  const response = await appFetch("?route=categoria-crear", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3454,7 +3508,7 @@ async function requestCategoriaUpdate(payload) {
   params.append("tipo_categoria", payload.tipoCategoria);
   params.append("estado", payload.estado);
 
-  const response = await fetch("?route=categoria-actualizar", {
+  const response = await appFetch("?route=categoria-actualizar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3479,7 +3533,7 @@ async function requestCategoriaDelete(idCategoria) {
   const params = new URLSearchParams();
   params.append("id", String(idCategoria));
 
-  const response = await fetch("?route=categoria-eliminar", {
+  const response = await appFetch("?route=categoria-eliminar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3760,7 +3814,7 @@ async function requestPedidoCreate(payload) {
   params.append("estado", payload.estado);
   params.append("items", JSON.stringify(payload.items));
 
-  const response = await fetch("?route=pedido-crear", {
+  const response = await appFetch("?route=pedido-crear", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3788,7 +3842,7 @@ async function requestPedidoUpdate(payload) {
   params.append("estado", payload.estado);
   params.append("items", JSON.stringify(payload.items));
 
-  const response = await fetch("?route=pedido-actualizar", {
+  const response = await appFetch("?route=pedido-actualizar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -3813,7 +3867,7 @@ async function requestPedidoDelete(idPedido) {
   const params = new URLSearchParams();
   params.append("id", String(idPedido));
 
-  const response = await fetch("?route=pedido-eliminar", {
+  const response = await appFetch("?route=pedido-eliminar", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -4038,7 +4092,7 @@ function fillHistorialActionsModal(data) {
 }
 
 async function requestHistorialDetail(idHistorial) {
-  const response = await fetch(`?route=historial-detalle&id=${encodeURIComponent(idHistorial)}`);
+  const response = await appFetch(`?route=historial-detalle&id=${encodeURIComponent(idHistorial)}`);
   const responseType = response.headers.get("content-type") || "";
   if (!responseType.includes("application/json")) {
     throw new Error("La sesión expiró o la respuesta del servidor no es válida.");
@@ -4201,7 +4255,7 @@ async function anularHistorialRegistro(idHistorial) {
   const params = new URLSearchParams();
   params.append("id", idHistorial);
 
-  const response = await fetch("?route=historial-anular", {
+  const response = await appFetch("?route=historial-anular", {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
@@ -6230,8 +6284,20 @@ document.addEventListener("keydown", (e) => {
 
 // Logout action
 if (logoutBtn) {
-  const goLogout = () => {
-    window.location.href = "?route=logout";
+  const goLogout = async () => {
+    try {
+      const response = await appFetch("?route=logout", { method: "POST" });
+      let result = null;
+      try {
+        result = await response.json();
+      } catch (_) {
+        result = null;
+      }
+
+      window.location.href = result?.redirect || "?route=login";
+    } catch (_) {
+      window.location.href = "?route=login";
+    }
   };
 
   logoutBtn.addEventListener("click", goLogout);

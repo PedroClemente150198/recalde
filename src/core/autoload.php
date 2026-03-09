@@ -57,6 +57,105 @@ if (!defined('BASE_URL')) {
     define('BASE_URL', $baseUrl);
 }
 
+if (!function_exists('isHttpsRequest')) {
+    function isHttpsRequest(): bool {
+        $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+        if ($https !== '' && $https !== 'off' && $https !== '0') {
+            return true;
+        }
+
+        $forwardedProto = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        if (str_contains($forwardedProto, 'https')) {
+            return true;
+        }
+
+        return (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
+    }
+}
+
+if (!function_exists('configureSessionCookies')) {
+    function configureSessionCookies(): void {
+        if (headers_sent()) {
+            return;
+        }
+
+        $secure = isHttpsRequest();
+        $current = session_get_cookie_params();
+        $basePath = defined('BASE_URL') ? trim((string) BASE_URL) : '';
+        $cookiePath = $basePath !== '' ? rtrim($basePath, '/') . '/' : '/';
+
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path' => $cookiePath,
+            'domain' => (string) ($current['domain'] ?? ''),
+            'secure' => $secure,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+
+        ini_set('session.use_strict_mode', '1');
+        ini_set('session.cookie_httponly', '1');
+        ini_set('session.cookie_samesite', 'Lax');
+        ini_set('session.cookie_secure', $secure ? '1' : '0');
+    }
+}
+
+if (!function_exists('startSecureSession')) {
+    function startSecureSession(): void {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            return;
+        }
+
+        configureSessionCookies();
+        session_start();
+    }
+}
+
+if (!function_exists('generateAppToken')) {
+    function generateAppToken(): string {
+        try {
+            return bin2hex(random_bytes(32));
+        } catch (\Throwable $e) {
+            return hash('sha256', uniqid('app_token', true) . microtime(true));
+        }
+    }
+}
+
+if (!function_exists('getDashboardCsrfToken')) {
+    function getDashboardCsrfToken(): string {
+        startSecureSession();
+        $token = (string) ($_SESSION['csrf_dashboard'] ?? '');
+        if ($token === '') {
+            $token = generateAppToken();
+            $_SESSION['csrf_dashboard'] = $token;
+        }
+        return $token;
+    }
+}
+
+if (!function_exists('regenerateDashboardCsrfToken')) {
+    function regenerateDashboardCsrfToken(): string {
+        startSecureSession();
+        $token = generateAppToken();
+        $_SESSION['csrf_dashboard'] = $token;
+        return $token;
+    }
+}
+
+if (!function_exists('validateDashboardCsrfToken')) {
+    function validateDashboardCsrfToken(string $providedToken): bool {
+        startSecureSession();
+        $storedToken = (string) ($_SESSION['csrf_dashboard'] ?? '');
+        $providedToken = trim($providedToken);
+
+        if ($storedToken === '' || $providedToken === '') {
+            return false;
+        }
+
+        return hash_equals($storedToken, $providedToken);
+    }
+}
+
 spl_autoload_register(function ($class) {
     $classPath = BASE_PATH . '/src/' . str_replace('\\', '/', $class) . '.php';
 

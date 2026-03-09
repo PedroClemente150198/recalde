@@ -78,8 +78,8 @@ cp .env.example .env
 DB_HOST=localhost
 DB_NAME=RECALDE
 DB_USER=root
-DB_PASS=12345678
-APP_DEBUG=1
+DB_PASS=change_me
+APP_DEBUG=0
 APP_URL=http://127.0.0.1:8000
 
 # Mail config
@@ -91,7 +91,7 @@ MAIL_PORT=587
 MAIL_USERNAME=
 MAIL_PASSWORD=
 MAIL_ENCRYPTION=tls
-MAIL_LOG_PATH=storage/mail.log
+MAIL_LOG_PATH=/tmp/recalde-mail.log
 ```
 
 ## Acceso inicial
@@ -103,9 +103,8 @@ MAIL_LOG_PATH=storage/mail.log
 
 ### Apache (recomendado)
 
-- Puedes apuntar el DocumentRoot a:
-  - `/var/www/html/recalde` (usa `index.php` en raíz), o
-  - `/var/www/html/recalde/public` (usa `public/index.php`).
+- Producción: apunta el `DocumentRoot` a `/var/www/html/recalde/public`.
+- Desarrollo local: también funciona desde la raíz del proyecto, pero no es la opción recomendada para producción.
 
 ### Servidor embebido de PHP (desarrollo)
 
@@ -122,13 +121,15 @@ Luego abre:
 - El sistema usa `password_hash/password_verify`.
 - Si existían usuarios legacy con contraseña en texto plano, se migran automáticamente a hash en el próximo login exitoso.
 - `APP_DEBUG=1` habilita errores en pantalla; en producción usa `APP_DEBUG=0`.
+- El dashboard aplica CSRF global en todas las rutas autenticadas `POST`.
+- Las cookies de sesión se inicializan con `HttpOnly`, `SameSite=Lax` y `Secure` cuando la petición llega por HTTPS.
 - El rol `desarrollador` puede resetear contraseñas desde el módulo Developer: se genera una contraseña temporal y se marca cambio obligatorio al próximo login (si la columna `debe_cambiar_contrasena` existe).
 - El login incluye opción `Recordarme en este equipo` (recuerda usuario, no contraseña).
 - Recuperación de contraseña por correo:
   - Solicitud desde `?route=forgot-password` con usuario o correo.
   - Se envía enlace único a `?route=reset-password&token=...`.
   - El token expira y se invalida tras uso.
-  - Si falla envío real, se registra el contenido en `storage/mail.log`.
+  - Si falla envío real, se registra un log redactado (sin token visible) en `MAIL_LOG_PATH`.
 
 ## Medidas Personalizadas Por Persona
 

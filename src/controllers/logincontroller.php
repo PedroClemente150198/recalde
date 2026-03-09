@@ -130,6 +130,9 @@ class LoginController extends Controller {
 
         unset($_SESSION['login_last_user'], $_SESSION['login_last_remember']);
         $_SESSION[$this->csrfSessionKey('login')] = $this->generateCsrfToken();
+        if (function_exists('regenerateDashboardCsrfToken')) {
+            regenerateDashboardCsrfToken();
+        }
 
         $mustChangePassword = (int) ($user['debe_cambiar_contrasena'] ?? 0) === 1;
         $this->redirect($mustChangePassword ? '?route=perfil' : '?route=dashboard');
@@ -464,7 +467,12 @@ class LoginController extends Controller {
     }
 
     private function startSessionIfNeeded(): void {
-        if (session_status() === PHP_SESSION_NONE) {
+        if (function_exists('startSecureSession')) {
+            startSecureSession();
+            return;
+        }
+
+        if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
         }
     }
@@ -630,9 +638,10 @@ class LoginController extends Controller {
             return;
         }
 
+        $cookiePath = $this->getCookiePath();
         setcookie(self::REMEMBER_COOKIE_NAME, $usuario, [
             'expires' => time() + (self::REMEMBER_COOKIE_DAYS * 86400),
-            'path' => '/',
+            'path' => $cookiePath,
             'secure' => $this->isHttpsRequest(),
             'httponly' => true,
             'samesite' => 'Lax',
@@ -640,13 +649,19 @@ class LoginController extends Controller {
     }
 
     private function clearRememberUserCookie(): void {
+        $cookiePath = $this->getCookiePath();
         setcookie(self::REMEMBER_COOKIE_NAME, '', [
             'expires' => time() - 3600,
-            'path' => '/',
+            'path' => $cookiePath,
             'secure' => $this->isHttpsRequest(),
             'httponly' => true,
             'samesite' => 'Lax',
         ]);
+    }
+
+    private function getCookiePath(): string {
+        $baseUrl = defined('BASE_URL') ? trim((string) BASE_URL) : '';
+        return $baseUrl !== '' ? rtrim($baseUrl, '/') . '/' : '/';
     }
 
     private function isHttpsRequest(): bool {
@@ -680,4 +695,3 @@ class LoginController extends Controller {
         return is_array($flash) ? $flash : null;
     }
 }
-

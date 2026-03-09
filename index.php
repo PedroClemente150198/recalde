@@ -1,10 +1,8 @@
-<?php 
+<?php
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-require_once __DIR__. '/src/core/autoload.php';
+require_once __DIR__ . '/src/core/autoload.php';
+startSecureSession();
+sendResponseSecurityHeaders();
 
 //echo __DIR__. '/src/models/usuarios.php';
 //echo BASE_PATH;
@@ -17,16 +15,11 @@ use controllers\logincontroller;
 use controllers\dashboardcontroller;
 
 // Por ejemplo, ?route=usuarios
-$route = $_GET['route'] ?? 'home';
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+$route = trim((string) ($_GET['route'] ?? 'home'));
 
 $publicRoutes = [
     'login',
     'validar-login',
-    'logout',
     'forgot-password',
     'forgot-password-send',
     'reset-password',
@@ -36,6 +29,15 @@ if (!in_array($route, $publicRoutes, true)) {
     if (!isset($_SESSION['usuario'])) {
         header("Location: ?route=login");
         exit();
+    }
+
+    getDashboardCsrfToken();
+
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'POST') {
+        $csrfToken = extractRequestCsrfToken();
+        if (!validateDashboardCsrfToken($csrfToken)) {
+            respondCsrfFailureAndExit();
+        }
     }
 
     $mustChangePassword = (int) ($_SESSION['usuario']['debe_cambiar_contrasena'] ?? 0) === 1;
@@ -62,6 +64,38 @@ if (!in_array($route, $publicRoutes, true)) {
             exit();
         }
     }
+}
+
+function sendResponseSecurityHeaders(): void {
+    header_remove('X-Powered-By');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+
+    if (isHttpsRequest()) {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    }
+}
+
+function extractRequestCsrfToken(): string {
+    $postToken = trim((string) ($_POST['csrf_token'] ?? ''));
+    if ($postToken !== '') {
+        return $postToken;
+    }
+
+    return trim((string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ''));
+}
+
+function respondCsrfFailureAndExit(): void {
+    header('Content-Type: application/json; charset=UTF-8');
+    http_response_code(419);
+    echo json_encode([
+        'ok' => false,
+        'message' => 'Tu sesión expiró. Recarga la página e inténtalo de nuevo.',
+        'code' => 'csrf_invalid'
+    ], JSON_UNESCAPED_UNICODE);
+    exit();
 }
 
 //echo $route.'<br>';
@@ -98,13 +132,27 @@ switch($route) {
         break;
     
     case 'logout':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+            header("Location: ?route=dashboard");
+            exit();
+        }
+
+        startSecureSession();
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], (bool) $params['secure'], (bool) $params['httponly']);
+        }
         session_destroy();
-        header("Location: ?route=login");
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode([
+            'ok' => true,
+            'redirect' => '?route=login'
+        ], JSON_UNESCAPED_UNICODE);
         exit();
     
     case 'usuarios':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -114,7 +162,7 @@ switch($route) {
         break;
 
     case 'dashboard':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -124,7 +172,7 @@ switch($route) {
         break;
     
     case 'ventas':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -134,7 +182,7 @@ switch($route) {
         break;
 
     case 'venta-crear':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -144,7 +192,7 @@ switch($route) {
         break;
 
     case 'venta-actualizar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -154,7 +202,7 @@ switch($route) {
         break;
 
     case 'venta-detalle':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -164,7 +212,7 @@ switch($route) {
         break;
 
     case 'venta-abono-crear':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -174,7 +222,7 @@ switch($route) {
         break;
 
     case 'venta-eliminar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -184,7 +232,7 @@ switch($route) {
         break;
     
     case 'perfil':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -194,7 +242,7 @@ switch($route) {
         break;
 
     case 'perfil-crear':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -204,7 +252,7 @@ switch($route) {
         break;
 
     case 'perfil-actualizar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -214,7 +262,7 @@ switch($route) {
         break;
 
     case 'perfil-eliminar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -224,7 +272,7 @@ switch($route) {
         break;
 
     case 'clientes':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -234,7 +282,7 @@ switch($route) {
         break;
 
     case 'cliente-crear':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -244,7 +292,7 @@ switch($route) {
         break;
 
     case 'cliente-eliminar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -254,7 +302,7 @@ switch($route) {
         break;
 
     case 'cliente-actualizar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -264,7 +312,7 @@ switch($route) {
         break;
     
     case 'pedidos':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -274,7 +322,7 @@ switch($route) {
         break;
 
     case 'pedido-detalle':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -284,7 +332,7 @@ switch($route) {
         break;
 
     case 'pedido-crear':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -294,7 +342,7 @@ switch($route) {
         break;
 
     case 'pedido-actualizar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -304,7 +352,7 @@ switch($route) {
         break;
 
     case 'pedido-eliminar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -314,7 +362,7 @@ switch($route) {
         break;
     
     case 'historial':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -324,7 +372,7 @@ switch($route) {
         break;
 
     case 'historial-detalle':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -334,7 +382,7 @@ switch($route) {
         break;
 
     case 'historial-anular':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -344,7 +392,7 @@ switch($route) {
         break;
 
     case 'producto-crear':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -354,7 +402,7 @@ switch($route) {
         break;
 
     case 'producto-actualizar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -364,7 +412,7 @@ switch($route) {
         break;
 
     case 'producto-eliminar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -374,7 +422,7 @@ switch($route) {
         break;
 
     case 'categoria-crear':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -384,7 +432,7 @@ switch($route) {
         break;
 
     case 'categoria-actualizar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -394,7 +442,7 @@ switch($route) {
         break;
 
     case 'categoria-eliminar':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -404,7 +452,7 @@ switch($route) {
         break;
     
     case 'inventario':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -414,7 +462,7 @@ switch($route) {
         break;
     
     case 'configuracion':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -424,7 +472,7 @@ switch($route) {
         break;
 
     case 'developer':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -434,7 +482,7 @@ switch($route) {
         break;
 
     case 'developer-data':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -444,7 +492,7 @@ switch($route) {
         break;
 
     case 'developer-action':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -454,7 +502,7 @@ switch($route) {
         break;
 
     case 'dashboard-ui-data':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -464,7 +512,7 @@ switch($route) {
         break;
 
     case 'home':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -474,7 +522,7 @@ switch($route) {
         break;
 
     case 'home-data':
-        if (session_status() === PHP_SESSION_NONE) session_start();
+        startSecureSession();
         if (!isset($_SESSION['usuario'])) {
             header("Location: ?route=login");
             exit();
@@ -486,46 +534,3 @@ switch($route) {
         header("Location: ?route=login");
         exit();
 }
-/*
-use models\usuarios;
-
-$getUsers = new Usuarios();
-$results = $getUsers->getAllUsers();
-
-if(!$results){
-    echo "No se encontraron usuarios.";
-    return;
-}
-echo 'Lista de usuarios registrados:' . "<br>";
-foreach ($results as $row) {
-    echo "<p>Usuario ID: " . $row['id'] . "<br>Usuario: " . $row['usuario'] . "<br>Contraseña: ".$row["contrasena"]."<br>Email: " . $row['correo'] . "<br></p>";
-}
-*/
-
-
-//require_once __DIR__. '/config/db.php';
-//$usuario = new Usuarios();
-//$results = $usuario->getAllUsers();
-//if (!$results) {
-//    echo "No se encontraron usuarios.";
-//    return;
-//}
-//foreach ($results as $row) {
-//    echo "<h1>Usuario ID: " . $row['id'] . " Nombre: " . $row['nombre'] . " Email: " . $row['email'] . "<br></h1>";
-//}
-
-//$dabase = new Database();
-//$dabase->connect();
-//$query = $dabase->connect()->query("SELECT * FROM roles");
-//$results = $query->fetchAll(PDO::FETCH_ASSOC);
-//if (!$results) {
-//    echo "No se encontraron roles.";
-//    return;
-//}
-//foreach ($results as $row) {
-//    echo "<h1>Role ID: " . $row['id'] . " Rol: " . $row['rol'] . "<br></h1>";
-//}
-//$query->closeCursor();
-//$dabase->disconnect();
-
-?>
