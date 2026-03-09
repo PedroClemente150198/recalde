@@ -23,7 +23,15 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$publicRoutes = ['login', 'validar-login', 'logout'];
+$publicRoutes = [
+    'login',
+    'validar-login',
+    'logout',
+    'forgot-password',
+    'forgot-password-send',
+    'reset-password',
+    'reset-password-save'
+];
 if (!in_array($route, $publicRoutes, true)) {
     if (!isset($_SESSION['usuario'])) {
         header("Location: ?route=login");
@@ -67,6 +75,26 @@ switch($route) {
     case 'validar-login':
         $controller = new LoginController();
         $controller->authenticate();
+        break;
+
+    case 'forgot-password':
+        $controller = new LoginController();
+        $controller->forgotPassword();
+        break;
+
+    case 'forgot-password-send':
+        $controller = new LoginController();
+        $controller->sendPasswordResetLink();
+        break;
+
+    case 'reset-password':
+        $controller = new LoginController();
+        $controller->resetPassword();
+        break;
+
+    case 'reset-password-save':
+        $controller = new LoginController();
+        $controller->savePasswordReset();
         break;
     
     case 'logout':

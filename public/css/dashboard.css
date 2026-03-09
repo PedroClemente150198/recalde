@@ -1,8 +1,8 @@
 
-/* Importing Google Fonts and Boxicons */
+/* Importing Google Fonts and local Boxicons */
 @import "https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap";
 
-@import "https://unpkg.com/boxicons@2.0.7/css/boxicons.min.css";
+@import "../vendor/boxicons/css/boxicons.min.css";
 
 :root {
   --dashboard-sidebar-collapsed: 78px;

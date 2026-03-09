@@ -25,7 +25,7 @@ if (!function_exists('loadDotEnv')) {
             $name = trim($name);
             $value = trim($value);
 
-            if ($name === '' || getenv($name) !== false) {
+            if ($name === '') {
                 continue;
             }
 

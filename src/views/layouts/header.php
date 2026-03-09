@@ -59,7 +59,7 @@
             <!-- List of navigation items -->
             <li>
               <a href="<?= $baseUrlEsc ?>/?route=home" data-page="home">
-                <i class='bx bx-grid-alt'></i>
+                <i class='bx bx-home'></i>
                 <span class="links_name">Sistema</span>
               </a>
               <span class="tooltip">Sistema</span>
@@ -67,35 +67,35 @@
             <!-- Additional navigation items -->
             <li>
               <a href="<?= $baseUrlEsc ?>/?route=perfil" data-page="perfil">
-                <i class='bx bx-user'></i>
+                <i class='bx bx-user-circle'></i>
                 <span class="links_name">Perfil</span>
               </a>
               <span class="tooltip">Perfil</span>
             </li>
             <li>
               <a href="<?= $baseUrlEsc ?>/?route=clientes" data-page="clientes">
-                <i class='bx bx-user-plus'></i>
+                <i class='bx bx-group'></i>
                 <span class="links_name">Clientes</span>
               </a>
               <span class="tooltip">Clientes</span>
             </li>
             <li>
               <a href="<?= $baseUrlEsc ?>/?route=pedidos" data-page="pedidos">
-                <i class='bx bx-chat'></i>
+                <i class='bx bx-receipt'></i>
                 <span class="links_name">N° Pedidos</span>
               </a>
               <span class="tooltip">N° Pedidos</span>
             </li>
             <li>
               <a href="<?= $baseUrlEsc ?>/?route=historial" data-page="historial">
-                <i class='bx bx-pie-chart-alt-2'></i>
+                <i class='bx bx-history'></i>
                 <span class="links_name">Historial</span>
               </a>
               <span class="tooltip">Historial</span>
             </li>
             <li>
               <a href="<?= $baseUrlEsc ?>/?route=inventario" data-page="inventario">
-                <i class='bx bx-folder'></i>
+                <i class='bx bx-box'></i>
                 <span class="links_name">Inventario</span>
               </a>
               <span class="tooltip">Inventario</span>

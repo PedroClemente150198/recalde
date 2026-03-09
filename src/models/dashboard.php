@@ -628,7 +628,7 @@ class Dashboard {
             $sql = "SELECT TABLE_NAME
                     FROM INFORMATION_SCHEMA.TABLES
                     WHERE TABLE_SCHEMA = :schema
-                      AND TABLE_TYPE = 'BASE TABLE'
+                    AND TABLE_TYPE = 'BASE TABLE'
                     ORDER BY TABLE_NAME ASC";
             $stmt = $this->conn->prepare($sql);
             $stmt->bindValue(':schema', $this->getCurrentDatabaseName(), PDO::PARAM_STR);

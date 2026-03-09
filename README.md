@@ -80,6 +80,18 @@ DB_NAME=RECALDE
 DB_USER=root
 DB_PASS=12345678
 APP_DEBUG=1
+APP_URL=http://127.0.0.1:8000
+
+# Mail config
+MAIL_DRIVER=mail
+MAIL_FROM_ADDRESS=no-reply@recalde.local
+MAIL_FROM_NAME=RECALDE
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=
+MAIL_PASSWORD=
+MAIL_ENCRYPTION=tls
+MAIL_LOG_PATH=storage/mail.log
 ```
 
 ## Acceso inicial
@@ -111,6 +123,12 @@ Luego abre:
 - Si existían usuarios legacy con contraseña en texto plano, se migran automáticamente a hash en el próximo login exitoso.
 - `APP_DEBUG=1` habilita errores en pantalla; en producción usa `APP_DEBUG=0`.
 - El rol `desarrollador` puede resetear contraseñas desde el módulo Developer: se genera una contraseña temporal y se marca cambio obligatorio al próximo login (si la columna `debe_cambiar_contrasena` existe).
+- El login incluye opción `Recordarme en este equipo` (recuerda usuario, no contraseña).
+- Recuperación de contraseña por correo:
+  - Solicitud desde `?route=forgot-password` con usuario o correo.
+  - Se envía enlace único a `?route=reset-password&token=...`.
+  - El token expira y se invalida tras uso.
+  - Si falla envío real, se registra el contenido en `storage/mail.log`.
 
 ## Medidas Personalizadas Por Persona
 
