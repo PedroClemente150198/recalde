@@ -358,6 +358,23 @@ $appVersion = defined('APP_VERSION') ? (string) APP_VERSION : '1.0.0';
             min-height: 1.2rem;
         }
 
+        .brand-mini-signature {
+            position: fixed;
+            right: 12px;
+            bottom: 10px;
+            z-index: 3;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(156, 235, 230, 0.28);
+            background: rgba(5, 28, 44, 0.45);
+            color: rgba(232, 255, 252, 0.85);
+            font-size: 10.5px;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            pointer-events: none;
+            user-select: none;
+        }
+
         @media (max-width: 920px) {
             .auth-shell {
                 grid-template-columns: 1fr;
@@ -378,6 +395,13 @@ $appVersion = defined('APP_VERSION') ? (string) APP_VERSION : '1.0.0';
 
             .title {
                 font-size: 1.62rem;
+            }
+
+            .brand-mini-signature {
+                right: 8px;
+                bottom: 8px;
+                font-size: 10px;
+                padding: 4px 8px;
             }
         }
     </style>
@@ -485,6 +509,7 @@ $appVersion = defined('APP_VERSION') ? (string) APP_VERSION : '1.0.0';
             </div>
         </section>
     </main>
+    <div class="brand-mini-signature" aria-hidden="true">Att: TecnologyArt</div>
 
     <script>
         (function () {
@@ -518,4 +543,3 @@ $appVersion = defined('APP_VERSION') ? (string) APP_VERSION : '1.0.0';
     </script>
 </body>
 </html>
-

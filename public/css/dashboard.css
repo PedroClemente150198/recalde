@@ -38,6 +38,24 @@ body{
   overflow-x: hidden;
 }
 
+.ta-signature {
+  position: fixed;
+  right: 14px;
+  bottom: 10px;
+  z-index: 18;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(137, 198, 230, 0.26);
+  background: rgba(3, 21, 35, 0.46);
+  color: rgba(230, 248, 255, 0.82);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  user-select: none;
+}
+
 header {
   position: relative;
   z-index: 100;
@@ -755,6 +773,13 @@ body.sidebar-expanded main {
 }
 
 @media (max-width: 640px) {
+  .ta-signature {
+    right: 8px;
+    bottom: 8px;
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+
   .mobile-topbar {
     left: 10px;
     right: 10px;

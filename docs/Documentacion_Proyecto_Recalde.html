@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documentacion Tecnica - RECALDE</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --ink: #122033;
+      --muted: #4d6178;
+      --brand: #0c4a7c;
+      --line: #d8e1ec;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      line-height: 1.45;
+      font-size: 12pt;
+    }
+    .watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-28deg);
+      font-size: 44pt;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: rgba(12, 74, 124, 0.10);
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      z-index: 0;
+    }
+    .page {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 40px 56px;
+      position: relative;
+      z-index: 1;
+    }
+    h1, h2, h3 { color: #0a2340; margin: 0 0 10px; }
+    h1 { font-size: 28px; margin-bottom: 8px; }
+    h2 {
+      margin-top: 26px;
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 6px;
+      font-size: 20px;
+    }
+    h3 { margin-top: 18px; font-size: 16px; }
+    p { margin: 8px 0; }
+    ul, ol { margin: 6px 0 10px 22px; }
+    li { margin: 4px 0; }
+    code {
+      background: #ecf2f9;
+      border: 1px solid #d7e3f0;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 90%;
+    }
+    pre {
+      background: #0f1b2a;
+      color: #e7f0ff;
+      padding: 14px;
+      border-radius: 8px;
+      overflow: auto;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10.5pt;
+      line-height: 1.35;
+      border: 1px solid #23374f;
+    }
+    .meta {
+      color: var(--muted);
+      margin-bottom: 14px;
+      font-size: 11pt;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin: 10px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+    th, td {
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      padding: 8px;
+      font-size: 10.5pt;
+    }
+    th { background: #edf4fb; }
+    .toc a {
+      color: var(--brand);
+      text-decoration: none;
+    }
+    .small { font-size: 10pt; color: var(--muted); }
+    .warning {
+      border-left: 4px solid #c62828;
+      background: #fff3f3;
+      padding: 10px 12px;
+      margin: 10px 0;
+    }
+    .ok {
+      border-left: 4px solid #1b8d40;
+      background: #f2fcf5;
+      padding: 10px 12px;
+      margin: 10px 0;
+    }
+    .doc-credit {
+      margin-top: 26px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      color: #23435f;
+      font-size: 10.5pt;
+      font-style: italic;
+      text-align: right;
+    }
+    @media print {
+      body { background: #fff; }
+      .page { max-width: none; margin: 0; padding: 0; }
+      .watermark { color: rgba(12, 74, 124, 0.08); }
+      a { color: #0a2340; text-decoration: none; }
+      h2, h3 { break-after: avoid; }
+      table, pre, .card { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="watermark">Att: TecnologyArt | Pedro Clemente</div>
+  <div class="page">
+    <h1>Documentacion Tecnica del Proyecto RECALDE</h1>
+    <p class="meta">
+      Version del documento: 1.0 | Fecha: 2026-03-09 | Proyecto base: <code>/var/www/html/recalde</code>
+    </p>
+
+    <div class="card">
+      <strong>Objetivo:</strong>
+      Este documento explica como funciona el sistema RECALDE, su arquitectura,
+      su modelo de datos, y el procedimiento de instalacion y despliegue en hosting compartido (ejemplo: Hostinger).
+    </div>
+
+    <h2>Tabla de Contenido</h2>
+    <ol class="toc">
+      <li><a href="#resumen">Resumen del Sistema</a></li>
+      <li><a href="#arquitectura">Arquitectura y Diagrama General</a></li>
+      <li><a href="#modulos">Modulos Funcionales</a></li>
+      <li><a href="#roles">Roles y Permisos</a></li>
+      <li><a href="#flujo">Flujo de Funcionamiento</a></li>
+      <li><a href="#datos">Modelo de Datos y Diagrama ER</a></li>
+      <li><a href="#rutas">Rutas Principales</a></li>
+      <li><a href="#instalacion">Instalacion Local</a></li>
+      <li><a href="#hosting">Despliegue en Hostinger</a></li>
+      <li><a href="#correo">Configuracion de Correo (Recuperacion)</a></li>
+      <li><a href="#checklist">Checklist de Produccion</a></li>
+      <li><a href="#soporte">Soporte y Mantenimiento</a></li>
+    </ol>
+
+    <h2 id="resumen">1. Resumen del Sistema</h2>
+    <p>
+      RECALDE es una aplicacion web MVC en PHP para gestion comercial y operativa de:
+      clientes, inventario, pedidos, ventas, abonos, historial, perfiles y panel tecnico de desarrollador.
+    </p>
+    <ul>
+      <li>Backend: PHP 8.1+ sin framework pesado (MVC propio).</li>
+      <li>Base de datos: MySQL/MariaDB.</li>
+      <li>Frontend: HTML/CSS/JS vanilla + Chart.js.</li>
+      <li>Autenticacion: sesion PHP, control de roles, CSRF en rutas autenticadas POST.</li>
+      <li>Recuperacion de contrasena por correo con token temporal.</li>
+    </ul>
+
+    <h2 id="arquitectura">2. Arquitectura y Diagrama General</h2>
+    <h3>2.1 Estructura de carpetas</h3>
+    <pre>recalde/
+|-- index.php               (router principal)
+|-- config/db.php           (conexion PDO)
+|-- src/
+|   |-- core/               (autoload, controller base, mailer)
+|   |-- controllers/        (logica HTTP y validaciones)
+|   |-- models/             (queries y reglas de negocio)
+|   |-- views/              (vistas PHP)
+|-- public/                 (assets web: css/js/img y public/index.php)
+|-- storage/                (sql, logs, uploads)
+|-- README.md
+</pre>
+
+    <h3>2.2 Diagrama de arquitectura (logico)</h3>
+    <pre>Usuario navegador
+      |
+      v
+Apache/Nginx + PHP
+      |
+      v
+index.php (router)
+      |
+      +--> LoginController ------> Usuarios(model)
+      |
+      +--> DashboardController --> [Clientes|Pedidos|Ventas|Inventario|Historial|Dashboard|Usuarios]
+      |
+      +--> Views (src/views/*)
+      |
+      +--> public/js/dashboardcontrol.js (AJAX)
+      |
+      v
+MySQL (tablas del negocio)
+</pre>
+
+    <h3>2.3 Patrons aplicados</h3>
+    <ul>
+      <li>Front Controller: todas las rutas entran por <code>index.php</code>.</li>
+      <li>MVC: Controllers coordinan, Models consultan DB, Views renderizan HTML.</li>
+      <li>Server-side rendering + peticiones AJAX para CRUD en dashboard.</li>
+    </ul>
+
+    <h2 id="modulos">3. Modulos Funcionales</h2>
+    <table>
+      <thead>
+        <tr><th>Modulo</th><th>Descripcion</th><th>Archivo principal</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Login</td><td>Ingreso, logout, recordarme (usuario), bloqueo por intentos, cambio forzado.</td><td><code>src/controllers/logincontroller.php</code></td></tr>
+        <tr><td>Perfil</td><td>Edicion de datos personales y gestion de usuarios segun rol.</td><td><code>DashboardController::perfil*</code></td></tr>
+        <tr><td>Clientes</td><td>CRUD de clientes y datos de contacto/empresa.</td><td><code>DashboardController::cliente*</code></td></tr>
+        <tr><td>Inventario</td><td>Categorias, productos, stock actual/minimo, estado.</td><td><code>DashboardController::producto*/categoria*</code></td></tr>
+        <tr><td>Pedidos</td><td>Pedido con detalle, personalizaciones y medidas por persona.</td><td><code>DashboardController::pedido*</code></td></tr>
+        <tr><td>Ventas</td><td>Crear venta desde pedido, abonos, saldo, estado de pago.</td><td><code>DashboardController::venta*</code></td></tr>
+        <tr><td>Historial</td><td>Trazabilidad de ventas e historial documental.</td><td><code>DashboardController::historial*</code></td></tr>
+        <tr><td>Home</td><td>KPIs, charts, resumen de cartera y sesion activa.</td><td><code>DashboardController::home*</code></td></tr>
+        <tr><td>Developer</td><td>Panel tecnico, integridad, acciones de mantenimiento, gestion de tablas.</td><td><code>DashboardController::developer*</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="roles">4. Roles y Permisos</h2>
+    <p>Roles base en <code>roles</code>: <code>admin</code>, <code>desarrollador</code>, <code>operador</code> (puedes agregar otros).</p>
+    <table>
+      <thead>
+        <tr><th>Accion</th><th>Admin</th><th>Desarrollador</th><th>Operador/Usuario</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Acceder dashboard operativo</td><td>Si</td><td>Si</td><td>Si</td></tr>
+        <tr><td>Gestionar usuarios (crear/editar/desactivar)</td><td>Si</td><td>Si</td><td>No</td></tr>
+        <tr><td>Acceder modulo Developer</td><td>No (por defecto)</td><td>Si</td><td>No</td></tr>
+        <tr><td>Resetear contrasena de terceros</td><td>No</td><td>Si (panel Developer)</td><td>No</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="flujo">5. Flujo de Funcionamiento</h2>
+    <h3>5.1 Flujo de autenticacion</h3>
+    <pre>Usuario -> ?route=login -> validar-login (POST)
+      -> LoginController::authenticate()
+      -> Usuarios::getUserByUsername()
+      -> password_verify()
+      -> session_regenerate_id(true)
+      -> $_SESSION['usuario']
+      -> redirect dashboard/perfil</pre>
+
+    <h3>5.2 Flujo recuperar contrasena</h3>
+    <pre>forgot-password (GET)
+  -> forgot-password-send (POST)
+  -> Usuarios::createPasswordResetToken()
+  -> Mailer::send() [smtp/mail/log]
+  -> reset-password?token=...
+  -> reset-password-save (POST)
+  -> Usuarios::resetPasswordWithToken()</pre>
+
+    <h3>5.3 Flujo comercial (pedido a venta)</h3>
+    <pre>Cliente -> Pedido -> Detalle pedido (+medidas)
+       -> Venta (desde pedido)
+       -> Abonos
+       -> Estado pago (pagado/parcial/pendiente)
+       -> Historial de ventas</pre>
+
+    <h2 id="datos">6. Modelo de Datos y Diagrama ER</h2>
+    <h3>6.1 Tablas clave</h3>
+    <ul>
+      <li>Seguridad: <code>roles</code>, <code>usuarios</code>, <code>password_resets</code>.</li>
+      <li>Maestros: <code>clientes</code>, <code>categorias</code>, <code>productos</code>.</li>
+      <li>Operacion: <code>pedidos</code>, <code>detalle_pedidos</code>, <code>detalle_pedido_medidas</code>, <code>detalle_personalizaciones</code>.</li>
+      <li>Comercial: <code>ventas</code>, <code>abonos_ventas</code>, <code>historial_ventas</code>.</li>
+    </ul>
+
+    <h3>6.2 Diagrama ER simplificado</h3>
+    <pre>roles (1) ---- (N) usuarios
+usuarios (1) -- (N) clientes
+usuarios (1) -- (N) ventas [usuario_registro]
+usuarios (1) -- (N) abonos_ventas [usuario_registro]
+usuarios (1) -- (N) historial_ventas [usuario_responsable]
+usuarios (1) -- (N) password_resets
+
+clientes (1) -- (N) pedidos
+clientes (1) -- (N) ventas
+clientes (1) -- (N) historial_ventas
+
+categorias (1) -- (N) productos
+pedidos (1) --- (N) detalle_pedidos
+productos (1) - (N) detalle_pedidos
+
+detalle_pedidos (1) -- (N) detalle_pedido_medidas
+detalle_pedidos (1) -- (N) detalle_personalizaciones
+opciones_personalizacion (1) -- (N) detalle_personalizaciones
+
+pedidos (1) --- (1) ventas
+ventas (1) --- (N) abonos_ventas
+ventas (1) --- (1) historial_ventas</pre>
+
+    <h2 id="rutas">7. Rutas Principales</h2>
+    <p>
+      Todas las rutas pasan por <code>index.php</code> usando <code>?route=...</code>.
+    </p>
+    <div class="card">
+      <strong>Publicas:</strong>
+      <code>login</code>, <code>validar-login</code>, <code>forgot-password</code>,
+      <code>forgot-password-send</code>, <code>reset-password</code>, <code>reset-password-save</code>.
+    </div>
+    <div class="card">
+      <strong>Privadas (ejemplos):</strong>
+      <code>home</code>, <code>perfil</code>, <code>clientes</code>, <code>pedidos</code>,
+      <code>ventas</code>, <code>inventario</code>, <code>historial</code>,
+      <code>developer</code>, <code>developer-action</code>, <code>logout</code>.
+    </div>
+    <p class="small">
+      Nota: en rutas privadas con metodo POST se valida CSRF global.
+    </p>
+
+    <h2 id="instalacion">8. Instalacion Local (Desarrollo)</h2>
+    <ol>
+      <li>Copiar <code>.env.example</code> a <code>.env</code>.</li>
+      <li>Crear base de datos <code>RECALDE</code>.</li>
+      <li>Importar <code>storage/schema.sql</code> y <code>storage/seed.sql</code>.</li>
+      <li>Configurar credenciales DB y correo en <code>.env</code>.</li>
+      <li>Levantar servidor local: <code>php -S 127.0.0.1:8000</code>.</li>
+      <li>Abrir: <code>http://127.0.0.1:8000/?route=login</code>.</li>
+    </ol>
+
+    <h3>8.1 Requisitos</h3>
+    <ul>
+      <li>PHP 8.1+ con <code>pdo</code>, <code>pdo_mysql</code>.</li>
+      <li>MySQL 8+ o MariaDB compatible.</li>
+      <li>Apache con <code>mod_rewrite</code> (en produccion recomendada).</li>
+    </ul>
+
+    <h2 id="hosting">9. Despliegue en Hostinger (Shared Hosting)</h2>
+    <h3>9.1 Paso a paso recomendado</h3>
+    <ol>
+      <li>En hPanel crea la base de datos MySQL y usuario DB.</li>
+      <li>Importa <code>storage/schema.sql</code> y <code>storage/seed.sql</code> por phpMyAdmin.</li>
+      <li>Sube el proyecto por File Manager o FTP.</li>
+      <li>Configura <code>.env</code> de produccion (APP_DEBUG=0, APP_URL=https://tu-dominio.com).</li>
+      <li>Configura correo SMTP real para recuperacion de contrasena.</li>
+      <li>Verifica permisos de <code>storage/</code> para escritura del servidor web.</li>
+      <li>Prueba login, CRUD basicos y recuperacion de contrasena.</li>
+    </ol>
+
+    <h3>9.2 Opcion A (ideal): DocumentRoot al directorio <code>public/</code></h3>
+    <ul>
+      <li>Si tu plan permite custom document root, apunta a <code>/ruta/recalde/public</code>.</li>
+      <li>Esta es la forma mas limpia y segura para produccion.</li>
+    </ul>
+
+    <h3>9.3 Opcion B (si no puedes cambiar DocumentRoot)</h3>
+    <ul>
+      <li>Publicar en <code>public_html</code> completo.</li>
+      <li>El proyecto ya incluye reglas <code>.htaccess</code> para bloquear rutas sensibles.</li>
+      <li>Aun asi, valida manualmente que no se expongan <code>.env</code>, <code>storage/</code>, <code>src/</code>, <code>config/</code>, <code>vendor/</code>.</li>
+    </ul>
+
+    <div class="warning">
+      En hosting compartido, nunca subas <code>.env</code> con credenciales de desarrollo.
+      Usa credenciales nuevas de produccion.
+    </div>
+
+    <h3>9.4 Variables .env minimas para hosting</h3>
+    <pre>APP_NAME=RECALDE
+APP_VERSION=1.2.2
+APP_DEBUG=0
+APP_URL=https://tu-dominio.com
+
+DB_HOST=localhost
+DB_NAME=TU_DB
+DB_USER=TU_USER
+DB_PASS=TU_PASSWORD
+DB_CHARSET=utf8mb4
+
+MAIL_DRIVER=smtp
+MAIL_FROM_ADDRESS=no-reply@tu-dominio.com
+MAIL_FROM_NAME=RECALDE
+MAIL_HOST=smtp.tu-proveedor.com
+MAIL_PORT=587
+MAIL_USERNAME=usuario_smtp
+MAIL_PASSWORD=clave_smtp
+MAIL_ENCRYPTION=tls
+MAIL_LOG_PATH=/tmp/recalde-mail.log</pre>
+
+    <h2 id="correo">10. Configuracion de Correo (Recuperacion de Contrasena)</h2>
+    <ol>
+      <li>Configura SMTP real en <code>.env</code>.</li>
+      <li>Verifica que el puerto SMTP este permitido en tu plan.</li>
+      <li>Si usas Outlook/Gmail, usa clave de aplicacion cuando aplique.</li>
+      <li>Prueba <code>?route=forgot-password</code> con un correo existente.</li>
+    </ol>
+    <div class="ok">
+      Si el envio falla, el sistema deja un log redactado en <code>MAIL_LOG_PATH</code>
+      (sin exponer el token completo de recuperacion).
+    </div>
+
+    <h2 id="checklist">11. Checklist de Produccion</h2>
+    <ul>
+      <li>[ ] <code>APP_DEBUG=0</code></li>
+      <li>[ ] DB de produccion configurada y respaldada</li>
+      <li>[ ] SMTP funcionando (correo de recuperacion probado)</li>
+      <li>[ ] SSL activo y dominio final configurado en <code>APP_URL</code></li>
+      <li>[ ] Permisos correctos en <code>storage/</code></li>
+      <li>[ ] Verificar reglas <code>.htaccess</code> activas</li>
+      <li>[ ] Usuario admin con contrasena segura (no default)</li>
+      <li>[ ] Copias de seguridad periodicas de DB y archivos</li>
+    </ul>
+
+    <h2 id="soporte">12. Soporte y Mantenimiento</h2>
+    <h3>12.1 Archivos clave para soporte tecnico</h3>
+    <ul>
+      <li><code>index.php</code>: enrutamiento y seguridad global.</li>
+      <li><code>src/controllers/dashboardcontroller.php</code>: flujo principal del dashboard.</li>
+      <li><code>src/controllers/logincontroller.php</code>: login y recuperacion.</li>
+      <li><code>src/models/usuarios.php</code>: usuarios, hash y reset token.</li>
+      <li><code>src/core/mailer.php</code>: transporte de correo.</li>
+      <li><code>storage/schema.sql</code>: estructura de BD.</li>
+    </ul>
+
+    <h3>12.2 Recomendacion de versionado</h3>
+    <ul>
+      <li>No versionar <code>.env</code> ni logs.</li>
+      <li>Usar ramas: <code>develop</code> y <code>main</code>.</li>
+      <li>Hacer backup antes de aplicar cambios en produccion.</li>
+    </ul>
+
+    <p class="small">
+      Fin del documento.
+    </p>
+    <p class="doc-credit">Hecho por: TecnologyArt | Pedro Clemente</p>
+  </div>
+</body>
+</html>

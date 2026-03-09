@@ -143,6 +143,32 @@ $csrfTokenValue = (string) ($csrfToken ?? '');
             font-size: 0.84rem;
             color: var(--muted);
         }
+
+        .brand-mini-signature {
+            position: fixed;
+            right: 12px;
+            bottom: 10px;
+            z-index: 2;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(156, 235, 230, 0.28);
+            background: rgba(5, 28, 44, 0.45);
+            color: rgba(232, 255, 252, 0.85);
+            font-size: 10.5px;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        @media (max-width: 640px) {
+            .brand-mini-signature {
+                right: 8px;
+                bottom: 8px;
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -181,6 +207,6 @@ $csrfTokenValue = (string) ($csrfToken ?? '');
 
         <p class="note">El enlace de recuperación expira automáticamente y solo puede usarse una vez.</p>
     </main>
+    <div class="brand-mini-signature" aria-hidden="true">Att: TecnologyArt</div>
 </body>
 </html>
-
