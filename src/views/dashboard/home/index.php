@@ -19,6 +19,8 @@ $homeData = [
     'labelsMes' => $labelsMes ?? ($labelsIngresos ?? []),
     'datosVentasMes' => $datosVentasMes ?? ($datosIngresos ?? []),
     'pedidosEstados' => $pedidosEstados ?? [],
+    'usuarioSesion' => (string) ($usuarioSesion ?? ($_SESSION['usuario']['usuario'] ?? '')),
+    'rolSesion' => (string) ($rolSesion ?? ($_SESSION['usuario']['nombre_rol'] ?? '')),
     'ultimaActualizacion' => $ultimaActualizacion ?? date('Y-m-d H:i:s')
 ];
 
@@ -69,6 +71,16 @@ $historialResumen = $homeData['historialResumen'] ?? [];
 $historialVigentes = (int) ($historialResumen['total_vigentes'] ?? 0);
 $historialAnulados = (int) ($historialResumen['total_anulados'] ?? 0);
 $ultimosHistorial = $homeData['ultimosHistorial'] ?? [];
+
+$usuarioSesionHome = trim((string) ($homeData['usuarioSesion'] ?? ''));
+if ($usuarioSesionHome === '') {
+    $usuarioSesionHome = '-';
+}
+
+$rolSesionHome = trim((string) ($homeData['rolSesion'] ?? ''));
+$rolSesionHomeLabel = $rolSesionHome !== ''
+    ? ucwords(str_replace(['_', '-'], ' ', strtolower($rolSesionHome)))
+    : '-';
 ?>
 <link rel="stylesheet" href="<?= htmlspecialchars((defined('BASE_URL') ? BASE_URL : ''), ENT_QUOTES, 'UTF-8') ?>/public/css/home.css">
 
@@ -83,6 +95,12 @@ $ultimosHistorial = $homeData['ultimosHistorial'] ?? [];
         </div>
 
         <div class="hero-meta">
+            <article class="hero-chip">
+                <span>Sesión actual</span>
+                <strong id="home-session-user"><?= htmlspecialchars($usuarioSesionHome, ENT_QUOTES, 'UTF-8') ?></strong>
+                <small id="home-session-role">Rol: <?= htmlspecialchars($rolSesionHomeLabel, ENT_QUOTES, 'UTF-8') ?></small>
+            </article>
+
             <article class="hero-chip">
                 <span>Frecuencia</span>
                 <strong>10 segundos</strong>

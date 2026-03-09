@@ -13,6 +13,7 @@ $ventasShowActionsColumn = !array_key_exists('ventasShowActionsColumn', $prefere
 $historialShowActionsColumn = !array_key_exists('historialShowActionsColumn', $preferences)
     ? true
     : (bool) $preferences['historialShowActionsColumn'];
+$sessionUserId = (int) ($_SESSION['usuario']['user_id'] ?? 0);
 
 $dbStatus = strtolower((string) ($info['dbStatus'] ?? 'error'));
 $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
@@ -282,12 +283,21 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
                 <tbody id="developer-users-body">
                     <?php if (!empty($usuariosCredenciales)): ?>
                         <?php foreach ($usuariosCredenciales as $item): ?>
+                            <?php
+                            $idUsuario = (int) ($item['id'] ?? 0);
+                            $estadoRaw = strtolower(trim((string) ($item['estado'] ?? '')));
+                            $estadoNormalizado = $estadoRaw === 'inactivo' ? 'inactivo' : 'activo';
+                            $isActivo = $estadoNormalizado === 'activo';
+                            $isSelfUser = $idUsuario === $sessionUserId;
+                            $toggleLabel = $isActivo ? 'Desactivar' : 'Activar';
+                            $toggleClass = $isActivo ? 'danger subtle' : 'primary';
+                            ?>
                             <tr>
-                                <td data-label="ID">#<?= (int) ($item['id'] ?? 0) ?></td>
+                                <td data-label="ID">#<?= $idUsuario ?></td>
                                 <td data-label="Usuario"><?= htmlspecialchars((string) ($item['usuario'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td data-label="Correo"><?= htmlspecialchars((string) ($item['correo'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
                                 <td data-label="Rol"><?= htmlspecialchars((string) ($item['nombre_rol'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
-                                <td data-label="Estado"><?= htmlspecialchars((string) ($item['estado'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></td>
+                                <td data-label="Estado"><?= htmlspecialchars($estadoNormalizado, ENT_QUOTES, 'UTF-8') ?></td>
                                 <td data-label="Cambio forzado"><?= !empty($item['debe_cambiar_contrasena']) ? 'Sí' : 'No' ?></td>
                                 <td class="mono" data-label="Contraseña almacenada">
                                     <?= htmlspecialchars((string) ($item['contrasena'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
@@ -297,10 +307,21 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
                                 </td>
                                 <td data-label="Acciones">
                                     <button
+                                        class="btn dev-btn <?= $isSelfUser ? 'secondary' : $toggleClass ?> developer-status-btn"
+                                        type="button"
+                                        data-action="developer-toggle-user-status"
+                                        data-user-id="<?= $idUsuario ?>"
+                                        data-username="<?= htmlspecialchars((string) ($item['usuario'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                        data-user-status="<?= htmlspecialchars($estadoNormalizado, ENT_QUOTES, 'UTF-8') ?>"
+                                        <?= $isSelfUser ? 'disabled title="No puedes cambiar el estado de tu propia cuenta desde aquí."' : '' ?>
+                                    >
+                                        <?= $isSelfUser ? 'Tu cuenta' : $toggleLabel ?>
+                                    </button>
+                                    <button
                                         class="btn dev-btn secondary developer-reset-btn"
                                         type="button"
                                         data-action="developer-reset-password-user"
-                                        data-user-id="<?= (int) ($item['id'] ?? 0) ?>"
+                                        data-user-id="<?= $idUsuario ?>"
                                         data-username="<?= htmlspecialchars((string) ($item['usuario'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                                     >
                                         Resetear contraseña
@@ -353,5 +374,6 @@ $dbStatusText = $dbStatus === 'ok' ? 'Conectada' : 'Error';
     'tables' => $tables,
     'tableManager' => $tableManager,
     'preferences' => $preferences,
-    'rolActual' => $rolActual
+    'rolActual' => $rolActual,
+    'sessionUserId' => $sessionUserId
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?></script>

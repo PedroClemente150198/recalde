@@ -855,6 +855,14 @@ function getDeveloperInputType(column) {
   return "text";
 }
 
+function getDeveloperEnumOptions(column) {
+  const columnType = String(column?.column_type ?? "").trim();
+  if (!columnType) return [];
+
+  const matches = [...columnType.matchAll(/'((?:''|[^'])*)'/g)];
+  return matches.map((item) => String(item?.[1] ?? "").replaceAll("''", "'"));
+}
+
 function getDeveloperInputValue(column, value) {
   if (value === null || value === undefined) {
     return "";
@@ -895,6 +903,7 @@ function renderDeveloperEditFields(row) {
       const columnName = String(column.name ?? "").trim();
       const value = getDeveloperInputValue(column, row?.[columnName]);
       const inputType = getDeveloperInputType(column);
+      const dataType = String(column.data_type ?? "").toLowerCase().trim();
       const defaultValue = column.default === null || column.default === undefined
         ? ""
         : String(column.default);
@@ -914,6 +923,49 @@ function renderDeveloperEditFields(row) {
               rows="4"
               placeholder="${column.is_nullable ? "Deja vacio para NULL" : `Default: ${escapeHtml(defaultValue || "-")}`}"
             >${escapeHtml(value)}</textarea>
+          </div>
+        `;
+      }
+
+      if (dataType === "enum") {
+        const enumOptions = getDeveloperEnumOptions(column);
+        const selectedValue = String(value ?? "");
+        const allowNull = Boolean(column.is_nullable);
+        const hasSelectedOption = enumOptions.includes(selectedValue);
+
+        const optionItems = [];
+        if (allowNull) {
+          optionItems.push(`<option value="" ${selectedValue === "" ? "selected" : ""}>NULL</option>`);
+        }
+
+        enumOptions.forEach((optionValue) => {
+          optionItems.push(`
+            <option value="${escapeHtml(optionValue)}" ${optionValue === selectedValue ? "selected" : ""}>
+              ${escapeHtml(optionValue)}
+            </option>
+          `);
+        });
+
+        if (!hasSelectedOption && selectedValue !== "") {
+          optionItems.push(`
+            <option value="${escapeHtml(selectedValue)}" selected>
+              ${escapeHtml(selectedValue)}
+            </option>
+          `);
+        }
+
+        return `
+          <div class="developer-form-field">
+            <label for="developer-field-${escapeHtml(columnName)}">
+              ${escapeHtml(columnName)}
+              <small>${escapeHtml(hint)}</small>
+            </label>
+            <select
+              id="developer-field-${escapeHtml(columnName)}"
+              name="${escapeHtml(columnName)}"
+            >
+              ${optionItems.join("")}
+            </select>
           </div>
         `;
       }
@@ -1042,6 +1094,7 @@ function renderDeveloperUsersCredentials(users) {
   if (!tbody) return;
 
   const rows = Array.isArray(users) ? users : [];
+  const sessionUserId = Number(developerPanelState.payload?.sessionUserId ?? 0);
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr>
@@ -1060,6 +1113,17 @@ function renderDeveloperUsersCredentials(users) {
       const mustChange = Number(item.debe_cambiar_contrasena ?? 0) === 1;
       const userId = Number(item.id ?? 0);
       const username = String(item.usuario ?? "");
+      const userStatusRaw = String(item.estado ?? "").trim().toLowerCase();
+      const userStatus = userStatusRaw === "inactivo" ? "inactivo" : "activo";
+      const userIsActive = userStatus === "activo";
+      const isSelfUser = userId > 0 && userId === sessionUserId;
+      const statusActionLabel = userIsActive ? "Desactivar" : "Activar";
+      const statusActionClass = userIsActive ? "danger subtle" : "primary";
+      const statusButtonLabel = isSelfUser ? "Tu cuenta" : statusActionLabel;
+      const statusButtonClass = isSelfUser ? "secondary" : statusActionClass;
+      const statusButtonDisabled = isSelfUser
+        ? 'disabled title="No puedes cambiar el estado de tu propia cuenta desde aquí."'
+        : "";
 
       return `
         <tr>
@@ -1067,10 +1131,21 @@ function renderDeveloperUsersCredentials(users) {
           <td data-label="Usuario">${escapeHtml(item.usuario ?? "-")}</td>
           <td data-label="Correo">${escapeHtml(item.correo ?? "-")}</td>
           <td data-label="Rol">${escapeHtml(item.nombre_rol ?? "-")}</td>
-          <td data-label="Estado">${escapeHtml(item.estado ?? "-")}</td>
+          <td data-label="Estado">${escapeHtml(userStatus)}</td>
           <td data-label="Cambio forzado">${mustChange ? "Si" : "No"}</td>
           <td class="mono" data-label="Contraseña almacenada">${escapeHtml(passwordStored)} ${hashLabel}</td>
           <td data-label="Acciones">
+            <button
+              class="btn dev-btn ${statusButtonClass} developer-status-btn"
+              type="button"
+              data-action="developer-toggle-user-status"
+              data-user-id="${escapeHtml(userId)}"
+              data-username="${escapeHtml(username)}"
+              data-user-status="${escapeHtml(userStatus)}"
+              ${statusButtonDisabled}
+            >
+              ${escapeHtml(statusButtonLabel)}
+            </button>
             <button
               class="btn dev-btn secondary developer-reset-btn"
               type="button"
@@ -1522,6 +1597,8 @@ function renderHomeDashboard(data) {
   const ingresosNode = document.querySelector("#home-ingresos-totales");
   const productoLiderNode = document.querySelector("#home-producto-lider");
   const updatedAtNode = document.querySelector("#home-updated-at");
+  const sessionUserNode = document.querySelector("#home-session-user");
+  const sessionRoleNode = document.querySelector("#home-session-role");
   const periodoIngresos = normalizeHomeIngresosPeriodo(data.periodoIngresos ?? homeDashboardState.ingresosPeriodo);
 
   homeDashboardState.ingresosPeriodo = periodoIngresos;
@@ -1544,6 +1621,13 @@ function renderHomeDashboard(data) {
   }
   if (updatedAtNode) {
     updatedAtNode.textContent = String(data.ultimaActualizacion ?? new Date().toISOString().slice(0, 19).replace("T", " "));
+  }
+  if (sessionUserNode) {
+    const usuarioSesion = String(data.usuarioSesion ?? "").trim();
+    sessionUserNode.textContent = usuarioSesion || "-";
+  }
+  if (sessionRoleNode) {
+    sessionRoleNode.textContent = `Rol: ${formatRoleLabel(data.rolSesion)}`;
   }
 
   renderHomeCarteraSummary(data.carteraResumen);
@@ -1932,6 +2016,22 @@ function getPaymentStatusClass(value) {
 function capitalize(value) {
   const text = String(value ?? "");
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+}
+
+function formatRoleLabel(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return "-";
+  }
+
+  return normalized
+    .split(" ")
+    .map((word) => capitalize(word.toLowerCase()))
+    .join(" ");
 }
 
 async function requestPedidoDetail(idPedido) {
@@ -4491,6 +4591,54 @@ if (content) {
       } finally {
         developerClearTableBtn.disabled = false;
         developerClearTableBtn.textContent = originalLabel;
+      }
+      return;
+    }
+
+    const developerToggleUserStatusBtn = e.target.closest('[data-action="developer-toggle-user-status"]');
+    if (developerToggleUserStatusBtn) {
+      const idUsuario = Number(developerToggleUserStatusBtn.dataset.userId ?? 0);
+      const username = String(developerToggleUserStatusBtn.dataset.username ?? "").trim() || "este usuario";
+      const currentStatusRaw = String(developerToggleUserStatusBtn.dataset.userStatus ?? "").trim().toLowerCase();
+      const currentStatus = currentStatusRaw === "inactivo" ? "inactivo" : "activo";
+      const nextStatus = currentStatus === "activo" ? "inactivo" : "activo";
+      const actionVerb = nextStatus === "activo" ? "activar" : "desactivar";
+
+      if (!Number.isFinite(idUsuario) || idUsuario <= 0) {
+        setDeveloperFeedback("Usuario inválido para actualizar estado.", "error");
+        return;
+      }
+
+      const confirmed = window.confirm(`Se va a ${actionVerb} a ${username}. ¿Deseas continuar?`);
+      if (!confirmed) return;
+
+      const originalLabel = developerToggleUserStatusBtn.textContent;
+      developerToggleUserStatusBtn.disabled = true;
+      developerToggleUserStatusBtn.textContent = "Procesando...";
+      setDeveloperFeedback("", "error");
+
+      try {
+        const result = await requestDeveloperAction("actualizar-estado-usuario", {
+          id_usuario: idUsuario,
+          estado: nextStatus,
+          table: getDeveloperSelectedTable()
+        });
+
+        if (result.logout) {
+          window.location.href = result.redirect || "?route=login";
+          return;
+        }
+
+        if (result.data) {
+          renderDeveloperPanel(result.data);
+        }
+
+        setDeveloperFeedback(result.message || "Estado de usuario actualizado correctamente.", "success");
+      } catch (error) {
+        setDeveloperFeedback(error.message, "error");
+      } finally {
+        developerToggleUserStatusBtn.disabled = false;
+        developerToggleUserStatusBtn.textContent = originalLabel;
       }
       return;
     }

@@ -195,6 +195,68 @@ class DashboardController extends Controller{
                 ], JSON_UNESCAPED_UNICODE);
                 return;
 
+            case 'actualizar-estado-usuario':
+                $idUsuario = filter_input(INPUT_POST, 'id_usuario', FILTER_VALIDATE_INT);
+                $estadoObjetivo = strtolower(trim((string) ($_POST['estado'] ?? '')));
+
+                if (!$idUsuario) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Usuario inválido para actualizar estado.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                if (!in_array($estadoObjetivo, ['activo', 'inactivo'], true)) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'Estado inválido. Debe ser activo o inactivo.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $sessionUserId = (int) ($_SESSION['usuario']['user_id'] ?? 0);
+                if ($idUsuario === $sessionUserId && $estadoObjetivo === 'inactivo') {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => 'No puedes desactivar tu propio usuario desde el panel Developer.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $updated = $dashboardModel->updateDeveloperTableRow(
+                    'usuarios',
+                    ['id' => (int) $idUsuario],
+                    ['estado' => $estadoObjetivo]
+                );
+
+                if (!$updated) {
+                    http_response_code(400);
+                    echo json_encode([
+                        'ok' => false,
+                        'message' => $dashboardModel->getLastError() ?? 'No se pudo actualizar el estado del usuario.'
+                    ], JSON_UNESCAPED_UNICODE);
+                    return;
+                }
+
+                $logout = $this->syncDeveloperSessionAfterTableMutation('usuarios', ['id' => (int) $idUsuario]);
+                $selectedTableForRefresh = $selectedTable !== '' ? $selectedTable : 'usuarios';
+                $data = $logout ? null : $this->buildDeveloperPanelData($dashboardModel, $selectedTableForRefresh);
+
+                echo json_encode([
+                    'ok' => true,
+                    'message' => $estadoObjetivo === 'activo'
+                        ? 'Usuario activado correctamente.'
+                        : 'Usuario desactivado correctamente.',
+                    'logout' => $logout,
+                    'redirect' => $logout ? '?route=login' : null,
+                    'data' => $data
+                ], JSON_UNESCAPED_UNICODE);
+                return;
+
             case 'vaciar-tabla':
                 if ($selectedTable === '') {
                     http_response_code(400);
@@ -395,6 +457,8 @@ class DashboardController extends Controller{
         $ventasModel = new Ventas();
         $historialModel = new Historial();
         $periodo = $this->normalizePeriodoIngresos($periodoIngresos);
+        $usuarioSesion = trim((string) ($_SESSION['usuario']['usuario'] ?? ''));
+        $rolSesion = trim((string) ($_SESSION['usuario']['nombre_rol'] ?? ''));
 
         $ventasModel->syncPedidosEstadoPorCartera();
 
@@ -436,6 +500,8 @@ class DashboardController extends Controller{
             "clientesConDeuda" => $clientesConDeuda,
             "historialResumen" => $resumenHistorial,
             "ultimosHistorial" => $ultimosHistorial,
+            "usuarioSesion" => $usuarioSesion,
+            "rolSesion" => $rolSesion,
             "ultimaActualizacion" => date('Y-m-d H:i:s')
         ];
     }
@@ -773,15 +839,17 @@ class DashboardController extends Controller{
         }
 
         $isAdmin = $this->isAdminSession();
+        $canManageUsers = $this->canManageUsersSession();
         $isLastActiveAdmin = $idUsuario > 0 ? $usuariosModel->isLastActiveAdmin($idUsuario) : false;
         $canDeactivateSelf = !($isAdmin && $isLastActiveAdmin);
 
         $this->render('dashboard/perfil/index', [
             'usuario' => $usuarioActual,
             'isAdmin' => $isAdmin,
+            'canManageUsers' => $canManageUsers,
             'canDeactivateSelf' => $canDeactivateSelf,
-            'usuarios' => $isAdmin ? $usuariosModel->getAllUsers() : [],
-            'roles' => $isAdmin ? $usuariosModel->getRoles() : []
+            'usuarios' => $canManageUsers ? $usuariosModel->getAllUsers() : [],
+            'roles' => $canManageUsers ? $usuariosModel->getRoles() : []
         ]);
     }
 
@@ -797,7 +865,7 @@ class DashboardController extends Controller{
             return;
         }
 
-        if (!$this->isAdminSession()) {
+        if (!$this->canManageUsersSession()) {
             http_response_code(403);
             echo json_encode([
                 'ok' => false,
@@ -1924,10 +1992,15 @@ class DashboardController extends Controller{
         return in_array($rol, ['desarrollador', 'developer'], true);
     }
 
+    private function canManageUsersSession(): bool {
+        return $this->isAdminSession() || $this->isDeveloperSession();
+    }
+
     private function buildDeveloperPanelData(Dashboard $dashboardModel, ?string $selectedTable = null): array {
         $this->migrateLegacyDeveloperUiSession($dashboardModel);
         $panel = $dashboardModel->getDeveloperOverview($selectedTable);
         $panel['rolActual'] = (string) ($_SESSION['usuario']['nombre_rol'] ?? '-');
+        $panel['sessionUserId'] = (int) ($_SESSION['usuario']['user_id'] ?? 0);
         $panel['preferences'] = $this->getDeveloperUiPreferences($dashboardModel);
         return $panel;
     }

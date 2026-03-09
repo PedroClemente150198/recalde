@@ -442,6 +442,14 @@
     white-space: nowrap;
 }
 
+.developer-status-btn {
+    height: 32px;
+    font-size: 0.78rem;
+    padding: 0 10px;
+    white-space: nowrap;
+    margin-right: 8px;
+}
+
 .developer-modal {
     position: fixed;
     inset: 0;
@@ -518,7 +526,8 @@
 }
 
 .developer-form-field input,
-.developer-form-field textarea {
+.developer-form-field textarea,
+.developer-form-field select {
     border-radius: 10px;
     border: 1px solid rgba(111, 189, 231, 0.24);
     background: rgba(4, 17, 28, 0.82);
@@ -653,7 +662,13 @@
     }
 
     .developer-row-btn,
+    .developer-status-btn,
     .developer-reset-btn {
         width: 100%;
+    }
+
+    .developer-status-btn {
+        margin-right: 0;
+        margin-bottom: 8px;
     }
 }

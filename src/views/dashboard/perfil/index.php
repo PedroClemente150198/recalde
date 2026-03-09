@@ -1,6 +1,7 @@
 <?php
 $usuario = $usuario ?? [];
 $isAdmin = (bool) ($isAdmin ?? false);
+$canManageUsers = (bool) ($canManageUsers ?? false);
 $canDeactivateSelf = (bool) ($canDeactivateSelf ?? true);
 $usuarios = $usuarios ?? [];
 $roles = $roles ?? [];
@@ -117,7 +118,7 @@ $estadoActual = strtolower((string) ($usuario['estado'] ?? 'activo'));
         </div>
     </section>
 
-    <?php if ($isAdmin): ?>
+    <?php if ($canManageUsers): ?>
         <section class="perfil-card">
             <div class="perfil-admin-head">
                 <h2>Gestión de Usuarios</h2>
@@ -162,29 +163,33 @@ $estadoActual = strtolower((string) ($usuario['estado'] ?? 'activo'));
                                     </td>
                                     <td data-label="Registro"><?= htmlspecialchars((string) ($item['fecha_registro'] ?? '-')) ?></td>
                                     <td data-label="Acciones">
-                                        <button
-                                            class="btn ghost"
-                                            type="button"
-                                            data-action="editar-usuario-perfil"
-                                            data-id="<?= $userId ?>"
-                                            data-usuario="<?= htmlspecialchars((string) ($item['usuario'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-correo="<?= htmlspecialchars((string) ($item['correo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
-                                            data-id-rol="<?= (int) ($item['id_rol'] ?? 0) ?>"
-                                            data-estado="<?= htmlspecialchars((string) $estado, ENT_QUOTES, 'UTF-8') ?>"
-                                        >
-                                            Editar
-                                        </button>
-
-                                        <?php if (!$isSelf): ?>
+                                        <?php if ($isAdmin): ?>
                                             <button
-                                                class="btn danger subtle"
+                                                class="btn ghost"
                                                 type="button"
-                                                data-action="eliminar-usuario-perfil"
+                                                data-action="editar-usuario-perfil"
                                                 data-id="<?= $userId ?>"
                                                 data-usuario="<?= htmlspecialchars((string) ($item['usuario'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                data-correo="<?= htmlspecialchars((string) ($item['correo'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                data-id-rol="<?= (int) ($item['id_rol'] ?? 0) ?>"
+                                                data-estado="<?= htmlspecialchars((string) $estado, ENT_QUOTES, 'UTF-8') ?>"
                                             >
-                                                Desactivar
+                                                Editar
                                             </button>
+
+                                            <?php if (!$isSelf): ?>
+                                                <button
+                                                    class="btn danger subtle"
+                                                    type="button"
+                                                    data-action="eliminar-usuario-perfil"
+                                                    data-id="<?= $userId ?>"
+                                                    data-usuario="<?= htmlspecialchars((string) ($item['usuario'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                >
+                                                    Desactivar
+                                                </button>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <span class="perfil-tag">Solo lectura</span>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
@@ -201,7 +206,7 @@ $estadoActual = strtolower((string) ($usuario['estado'] ?? 'activo'));
     <?php endif; ?>
 </div>
 
-<?php if ($isAdmin): ?>
+    <?php if ($canManageUsers): ?>
     <div class="perfil-modal" id="perfil-create-modal" hidden>
         <div class="perfil-modal-backdrop" data-close="perfil-create-modal"></div>
         <div class="perfil-modal-content" role="dialog" aria-modal="true" aria-labelledby="perfil-create-title">
@@ -257,6 +262,7 @@ $estadoActual = strtolower((string) ($usuario['estado'] ?? 'activo'));
         </div>
     </div>
 
+    <?php if ($isAdmin): ?>
     <div class="perfil-modal" id="perfil-edit-modal" hidden>
         <div class="perfil-modal-backdrop" data-close="perfil-edit-modal"></div>
         <div class="perfil-modal-content" role="dialog" aria-modal="true" aria-labelledby="perfil-edit-title">
@@ -313,4 +319,5 @@ $estadoActual = strtolower((string) ($usuario['estado'] ?? 'activo'));
             </form>
         </div>
     </div>
+    <?php endif; ?>
 <?php endif; ?>
